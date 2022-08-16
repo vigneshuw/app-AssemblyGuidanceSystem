@@ -1,7 +1,7 @@
 from PyQt6.QtWidgets import QApplication, QWidget, QPushButton, QHBoxLayout, QVBoxLayout, QStyle, QFileDialog, QLabel
 from PyQt6.QtGui import QIcon, QImage, QPixmap
 from PyQt6.QtMultimediaWidgets import QVideoWidget
-from PyQt6.QtCore import QThread, pyqtSignal
+from PyQt6.QtCore import QThread, pyqtSignal, Qt
 import sys
 import cv2
 
@@ -46,6 +46,10 @@ class MainWindow(QWidget):
         vbox.addWidget(self.feed_label)
         vbox.addLayout(hbox)
 
+        # Initialize all the threads
+        self.Worker1 = Worker1()
+        self.Worker1.ImageUpdate.connect(self.image_update_slot)
+
         # Set a layout
         self.setLayout(vbox)
 
@@ -55,14 +59,18 @@ class MainWindow(QWidget):
     def cancel_feed(self):
         self.Worker1.stop()
 
+        # Update button states
+        self.load_video_btn.setEnabled(True)
+        self.play_btn.setEnabled(True)
+
     def start_inference(self):
         # Others
         self.load_video_btn.setEnabled(False)
+        self.play_btn.setEnabled(False)
 
-        # Threads
-        self.Worker1 = Worker1(self.file_name)
+        # Start the worker operation
         self.Worker1.start()
-        self.Worker1.ImageUpdate.connect(self.image_update_slot)
+
 
     def open_file(self):
 
@@ -71,6 +79,7 @@ class MainWindow(QWidget):
         # Set media player to file name
         if file_name != '':
             self.file_name = file_name
+            self.Worker1.file_name = file_name
             self.play_btn.setEnabled(True)
             self.cancel_btn.setEnabled(True)
 
@@ -80,11 +89,11 @@ class Worker1(QThread):
     # Signal to transmit data
     ImageUpdate = pyqtSignal(QImage)
 
-    def __init__(self, file_name):
+    def __init__(self):
         super(Worker1, self).__init__()
 
         # Video file to load
-        self.file_name = file_name
+        self.file_name = None
         self.thread_active = False
 
     def run(self):
@@ -102,6 +111,7 @@ class Worker1(QThread):
             # Convert frame to QT6 format
             frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
             frame = QImage(frame.data, frame.shape[1], frame.shape[0], QImage.Format.Format_RGB888)
+            frame = frame.scaled(640, 480, Qt.AspectRatioMode.KeepAspectRatio)
 
             # Emit the thread
             self.ImageUpdate.emit(frame)
