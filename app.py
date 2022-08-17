@@ -46,11 +46,14 @@ class MainWindow(QWidget):
         self.load_model_btn = QPushButton("Load Model")
         self.load_model_btn.setEnabled(True)
         self.load_model_btn.clicked.connect(self.open_file_model)
+        # Initialization button
+        self.initialize_all = QPushButton("Initialize")
+        self.initialize_all.setEnabled(False)
+        self.initialize_all.clicked.connect(self.initialize_all_fn)
 
         # Combo boxes
         self.assembly_selection = QComboBox()
-        self.assembly_selection.addItems(["L10", "Demo"])
-        self.assembly_selection.activated.connect(self.assembly_cb_activated)
+        self.assembly_selection.addItems(["Demo", "L10"])
 
         # Dials
         # The inference length dial
@@ -147,6 +150,7 @@ class MainWindow(QWidget):
         hbox_btns_2.setContentsMargins(0, 0, 0, 0)
         hbox_btns_2.addWidget(self.load_model_btn)
         hbox_btns_2.addWidget(self.assembly_selection)
+        hbox_btns_2.addWidget(self.initialize_all)
         hbox_btns_2.addLayout(inference_machine_dial_vbox)
         hbox_btns_2.addLayout(sm_dial_hbox)
         model_gb.setLayout(hbox_btns_2)
@@ -172,6 +176,7 @@ class MainWindow(QWidget):
         # Initialize all the threads
         self.Worker1 = Worker1()
         self.Worker1.ImageUpdate.connect(self.image_update_slot)
+        self.Worker1.time_sets_bysteps = self.time_sets_bysteps
 
         # Set a layout
         self.setLayout(layout)
@@ -179,45 +184,20 @@ class MainWindow(QWidget):
     def image_update_slot(self, image):
         self.feed_label.setPixmap(QPixmap.fromImage(image))
 
-    def cancel_feed(self):
-        self.Worker1.stop()
+    def initialize_all_fn(self):
 
-        # Update button states
-        self.load_video_btn.setEnabled(True)
-        self.play_btn.setEnabled(True)
+        # Initialize the model
+        # Load and set the required model
+        model = keras.models.load_model(self.model_file_name)
+        self.Worker1.c3d_realtime = C3DOpticalFlowRealTime(model=model,
+                                                           inference_length=self.inference_machine_dial.value())
 
-    def inference_machine_dial_value_changed(self):
-
-        # Set the values
-        current_value = self.inference_machine_dial.value()
-        self.Worker1.inference_length = current_value
-
-        # Update the label
-        self.inference_machine_dial_value_label.setText(str(current_value) + "s")
-
-    def sm_dial1_value_changed(self):
-
-        # Set the values
-        current_value = self.sm_dial1.value() / 10
-        self.Worker1.d1 = current_value
-
-        # Update the label
-        self.sm_dial1_label_value.setText(str(current_value) + "s")
-
-    def sm_dial2_value_changed(self):
-
-        # Set the values
-        current_value = self.sm_dial2.value() / 10
-        self.Worker1.d2 = current_value
-
-        # Update the label
-        self.sm_dial2_label_value.setText(str(current_value) + "s")
-
-    def assembly_cb_activated(self, index):
+        # Initialize the State Machine
+        assembly_index = self.assembly_selection.currentIndex()
         # Assign the values appropriately
-        if index == 0:
+        if assembly_index == 1:
             sys.stdout.write("Not Implemented\n")
-        elif index == 1:
+        elif assembly_index == 0:
             # Initialize the state machines and assoc
             self.Worker1.classes_to_states = {
                 5: 0,
@@ -262,7 +242,45 @@ class MainWindow(QWidget):
             # Initialize the inference state machine
             self.Worker1.inference_sm = StateMachine(state_dependencies=state_dependencies,
                                                      num_classes=len(state_dependencies),
-                                                     timer=(3, 2))
+                                                     timer=(self.sm_dial1.value()/10, self.sm_dial2.value()/10))
+
+        # Enable the inference button
+        self.play_btn.setEnabled(True)
+        self.cancel_btn.setEnabled(True)
+
+    def cancel_feed(self):
+        self.Worker1.stop()
+
+        # Update button states
+        self.load_video_btn.setEnabled(True)
+        self.play_btn.setEnabled(True)
+
+    def inference_machine_dial_value_changed(self):
+
+        # Set the values
+        current_value = self.inference_machine_dial.value()
+        self.Worker1.inference_length = current_value
+
+        # Update the label
+        self.inference_machine_dial_value_label.setText(str(current_value) + "s")
+
+    def sm_dial1_value_changed(self):
+
+        # Set the values
+        current_value = self.sm_dial1.value() / 10
+        self.Worker1.d1 = current_value
+
+        # Update the label
+        self.sm_dial1_label_value.setText(str(current_value) + "s")
+
+    def sm_dial2_value_changed(self):
+
+        # Set the values
+        current_value = self.sm_dial2.value() / 10
+        self.Worker1.d2 = current_value
+
+        # Update the label
+        self.sm_dial2_label_value.setText(str(current_value) + "s")
 
     def start_inference(self):
         # Others
@@ -287,6 +305,7 @@ class MainWindow(QWidget):
                 self.inference_machine_dial.setEnabled(True)
                 self.sm_dial1.setEnabled(True)
                 self.sm_dial2.setEnabled(True)
+                self.initialize_all.setEnabled(True)
 
     def open_file_model(self):
 
@@ -297,16 +316,11 @@ class MainWindow(QWidget):
             self.model_file_name = file_name
             self.Worker1.model_file_name = file_name
             if self.file_name is not None:
-                # self.play_btn.setEnabled(True)
-                # self.cancel_btn.setEnabled(True)
                 # Enable all dials
                 self.inference_machine_dial.setEnabled(True)
                 self.sm_dial1.setEnabled(True)
                 self.sm_dial2.setEnabled(True)
-
-        # Load and set the required model
-        model = keras.models.load_model(self.model_file_name)
-        self.Worker1.c3d_realtime = C3DOpticalFlowRealTime(model=model, inference_length=30)
+                self.initialize_all.setEnabled(True)
 
     def initialize_charts(self, num_steps):
 
@@ -315,7 +329,7 @@ class MainWindow(QWidget):
         percent_names = ["Value Added", "Non Value Added"]
 
         # Initialize timers
-        timer_init = [1] * (num_steps + 1)
+        timer_init = [0] * (num_steps + 1)
         percent_init = [1] * 2
 
         # Chart creation for both bar charts
@@ -340,7 +354,7 @@ class MainWindow(QWidget):
         self.chart_step_time.addAxis(self.axis_y_step_time, Qt.AlignmentFlag.AlignLeft)
         self.time_series_bystep.attachAxis(self.axis_y_step_time)
         # X-axis
-        self.axis_x_step_time.setRange(0, 15)
+        self.axis_x_step_time.setRange(0, 100)
         self.chart_step_time.addAxis(self.axis_x_step_time, Qt.AlignmentFlag.AlignBottom)
         self.time_series_bystep.attachAxis(self.axis_x_step_time)
         # Chart View for the Step-time bar chart
@@ -381,6 +395,8 @@ class Worker1(QThread):
         self.inference_sm = None
         self.classes_to_states = None
 
+        self.time_sets_bysteps = None
+
     def run(self):
 
         self.thread_active = True
@@ -412,6 +428,10 @@ class Worker1(QThread):
 
             # Update the state machine
             status = self.inference_sm.update_state(majority_vote=majority_vote)
+
+            # update the plots
+            current_state = self.inference_sm.get_current_state(self.inference_sm.states)
+            self.time_sets_bysteps[0].replace(current_state, self.inference_sm.class_occurrence_counter_normalized[0, current_state])
 
             # Convert frame to QT6 format
             frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
