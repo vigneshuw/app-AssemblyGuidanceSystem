@@ -1,10 +1,16 @@
 from PyQt6.QtWidgets import QApplication, QWidget, QPushButton, QHBoxLayout, QVBoxLayout, QStyle, QFileDialog, QLabel, QGridLayout
 from PyQt6.QtGui import QIcon, QImage, QPixmap, QPainter
-from PyQt6.QtCharts import QBarSet, QStackedBarSeries, QChart, QChartView, QBarCategoryAxis, QValueAxis, QBarSeries
-from PyQt6.QtMultimediaWidgets import QVideoWidget
+from PyQt6.QtCharts import QBarSet, QChart, QChartView, QBarCategoryAxis, QValueAxis, QHorizontalStackedBarSeries, \
+    QHorizontalPercentBarSeries
 from PyQt6.QtCore import QThread, pyqtSignal, Qt
+from InferenceModule.state_machine import StateMachine
+from InferenceModule.inferences import C3DOpticalFlowRealTime
 import sys
 import cv2
+import os
+import numpy as np
+from collections import Counter
+from tensorflow import keras
 
 
 class MainWindow(QWidget):
@@ -38,19 +44,25 @@ class MainWindow(QWidget):
         self.feed_label = QLabel()
 
         # Plots
-        # BarPlots
+        # BarPlot - Step Time
         self.time_sets_bysteps = []
-        self.time_series_bystep = QBarSeries()
+        self.time_series_bystep = QHorizontalStackedBarSeries()
         self.chart_step_time = QChart()
-        self.axis_x_step_time = QBarCategoryAxis()
-        self.axis_y_step_time = QValueAxis()
+        self.axis_y_step_time = QBarCategoryAxis()
+        self.axis_x_step_time = QValueAxis()
         self.categories_step_time = ["Position Motherboard", "Attach Bracket", "Secure Motherboard", "Insert Card",
                                      "Attach Device", "Remove Battery", "Others"]
         self._chart_view_step_time = None
-        self._chart_view_step_time_percentage = None
+        # BarPlots - Percentage of Value added activities
+        self.cycle_percent_sets = []
+        self.cycle_percent_series = QHorizontalPercentBarSeries()
+        self.chart_cycle_percent = QChart()
+        self.axis_y_cycle_percent = QBarCategoryAxis()
+        self.categories_cycle_percent = ["Cycle"]
+        self._chart_view_cycle_percent = None
 
         # Testing
-        self.initialize_charts(6)
+        self.initialize_charts(num_steps=6)
 
         # For all buttons
         hbox_btns = QHBoxLayout()
@@ -62,34 +74,19 @@ class MainWindow(QWidget):
         # For the bar plots
         vbox_bar_plots = QVBoxLayout()
         vbox_bar_plots.setContentsMargins(0, 0, 0, 0)
+        vbox_bar_plots.addWidget(self._chart_view_cycle_percent)
         vbox_bar_plots.addWidget(self._chart_view_step_time)
-
+        # For the video being playing
+        vbox_video = QVBoxLayout()
+        vbox_video.setContentsMargins(0, 0, 0, 0)
+        vbox_video.addWidget(self.feed_label)
 
         # Make a grid
         layout = QGridLayout()
         # Add Buttons
         layout.addLayout(hbox_btns, 0, 0, 1, 10)
-        layout.addLayout(vbox_bar_plots, 1, 0, 5, 3)
-        # Add the plots
-        # layout.addWidget(self.feed_label, 1, 0, 3, 1)
-        # layout.addWidget(self._chart_view_step_time, 1, 1, 3, 1)
-
-
-        # For the video
-        # hbox_plots = QHBoxLayout()
-        # hbox_plots_sub = QHBoxLayout()
-        # vbox_plots = QVBoxLayout()
-        # vbox_plots.addWidget(self._chart_view_step_time)
-        # vbox_plots.addWidget(self._chart_view_step_time)
-        # hbox_plots_sub.addLayout(vbox_plots)
-        # hbox_plots.addLayout(hbox_plots_sub)
-        # hbox_plots.addWidget(self.feed_label)
-
-
-        # # Vertical Box
-        # vbox = QVBoxLayout()
-        # vbox.addLayout(hbox_plots)
-        # vbox.addLayout(hbox_btns)
+        layout.addLayout(vbox_bar_plots, 1, 0, 3, 3)
+        layout.addLayout(vbox_video, 1, 3, 3, 5)
 
         # Initialize all the threads
         self.Worker1 = Worker1()
@@ -113,8 +110,57 @@ class MainWindow(QWidget):
         self.load_video_btn.setEnabled(False)
         self.play_btn.setEnabled(False)
 
-        # Start the updates
-        self.time_sets_bysteps[0].replace(0, 10)
+        # Initialize the state machines and assoc
+        self.Worker1.classes_to_states = {
+            5: 0,
+            1: 1,
+            2: 2,
+            3: 3,
+            4: 4,
+            6: 5,
+            0: 6
+
+        }
+        # Create state dependencies
+        state_dependencies = [
+            [
+                [3, 4, 5, 6], [1],  # S0
+            ],
+
+            [
+                [0, 6], [2]  # S1
+            ],
+
+            [
+                [1, 6], [3]  # S2
+            ],
+
+            [
+                [2, 6], [4]  # S3
+            ],
+
+            [
+                [3, 6], [5]  # S4
+            ],
+
+            [
+                [4, 6], [0]  # S5
+            ],
+
+            [
+                [0, 1, 2, 3, 4, 5], [0, 1, 2, 3, 4, 5]  # S6 - The "Other" class
+            ],
+        ]
+        # Model path
+        model_path = os.path.join(os.path.dirname(os.getcwd()), "trained_models", "AssemblyDemo", "c3d",
+                                  "C3D_scratch_best_optimo.hdf5")
+        model = keras.models.load_model(model_path)
+
+        # Real time class
+        self.Worker1.c3d_realtime = C3DOpticalFlowRealTime(model, inference_length=30)
+        # Initialize the inference state machine
+        self.Worker1.inference_sm = StateMachine(state_dependencies=state_dependencies, num_classes=len(state_dependencies),
+                                    timer=(3, 2))
 
         # Start the worker operation
         self.Worker1.start()
@@ -134,35 +180,48 @@ class MainWindow(QWidget):
 
         # Add the 'Others' class to the step_names
         step_names = ["Step time", "Miscellaneous"]
+        percent_names = ["Value Added", "Non Value Added"]
 
         # Initialize timers
         timer_init = [1] * (num_steps + 1)
-        print(timer_init)
+        percent_init = [1] * 2
 
-        # data sets
+        # Chart creation for both bar charts
         for step in range(2):
-            # Create the set
+            # Create sets and series for the step time bar chart
             bar_set = QBarSet(step_names[step])
             bar_set.append(timer_init)
-            # add to the list after initialization
             self.time_sets_bysteps.append(bar_set)
-
-            # Append the sets to the Bar series
             self.time_series_bystep.append(self.time_sets_bysteps[step])
 
-        # Initialize the charts
+            # Create sets and series for the percentage bar chart
+            bar_set_percent = QBarSet(percent_names[step])
+            bar_set_percent.append(percent_init)
+            self.cycle_percent_sets.append(bar_set_percent)
+            self.cycle_percent_series.append(self.cycle_percent_sets[step])
+
+        # Initialize the step time bar chart
         self.chart_step_time.addSeries(self.time_series_bystep)
         self.chart_step_time.setTitle("Step Time in Seconds")
-
-        self.axis_x_step_time.append(self.categories_step_time)
-        self.chart_step_time.addAxis(self.axis_x_step_time, Qt.AlignmentFlag.AlignBottom)
-        self.time_series_bystep.attachAxis(self.axis_x_step_time)
-
-        self.axis_y_step_time.setRange(0, 15)
+        # Y-axis
+        self.axis_y_step_time.append(self.categories_step_time)
         self.chart_step_time.addAxis(self.axis_y_step_time, Qt.AlignmentFlag.AlignLeft)
         self.time_series_bystep.attachAxis(self.axis_y_step_time)
-
+        # X-axis
+        self.axis_x_step_time.setRange(0, 15)
+        self.chart_step_time.addAxis(self.axis_x_step_time, Qt.AlignmentFlag.AlignBottom)
+        self.time_series_bystep.attachAxis(self.axis_x_step_time)
+        # Chart View for the Step-time bar chart
         self._chart_view_step_time = QChartView(self.chart_step_time)
+
+        # Initialize the cycle time percentage bar chart
+        self.chart_cycle_percent.addSeries(self.cycle_percent_series)
+        # Only Y-axis
+        self.axis_y_cycle_percent.append(self.categories_cycle_percent)
+        self.chart_cycle_percent.addAxis(self.axis_y_cycle_percent, Qt.AlignmentFlag.AlignLeft)
+        self.cycle_percent_series.attachAxis(self.axis_y_cycle_percent)
+        # Chart View for the Cycle percent chart
+        self._chart_view_cycle_percent = QChartView(self.chart_cycle_percent)
 
 
 class Worker1(QThread):
@@ -177,6 +236,12 @@ class Worker1(QThread):
         self.file_name = None
         self.thread_active = False
 
+        # The Inference module
+        self.c3d_realtime = None
+        self.inference_sm = None
+        self.classes_to_states = None
+
+
     def run(self):
 
         self.thread_active = True
@@ -188,6 +253,26 @@ class Worker1(QThread):
 
             if not ret:
                 break
+
+            inference_packet = self.c3d_realtime.make_inference(frame)
+            if inference_packet is None:
+                continue
+                # Unpack the inference packet
+            inferences_list, inferences_prob = inference_packet
+            # Get the array of inferences
+            inferences_prob_summary = np.round_(np.array(inferences_prob).mean(axis=0), decimals=4)[0, :]
+            # Rearrange the output
+            inferences_prob_summary = np.array(inferences_prob_summary[list(self.classes_to_states.keys())])[np.newaxis, :]
+
+            # Counter
+            counter = Counter(inferences_list)
+            # get the most common
+            majority_vote = counter.most_common(1)[0][0]
+            # TODO: Fix the step order
+            majority_vote = self.classes_to_states[majority_vote]
+
+            # Update the state machine
+            status = self.inference_sm.update_state(majority_vote=majority_vote)
 
             # Convert frame to QT6 format
             frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)

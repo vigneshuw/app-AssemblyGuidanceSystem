@@ -2,6 +2,9 @@
 .idea/vcs.xml
 
 # Directory
-garbage_collector
+**/garbage_collector
+**/__pycache__
+
+# Files
 .idea/misc.xml
 .idea/interactive-realtime-dashboard.iml
