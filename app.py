@@ -462,7 +462,7 @@ class Worker1(QThread):
             # Update the Cycle time percentage plot
             self.cycle_percent_sets[0].replace(0,
                                                np.sum(self.inference_sm.class_occurrence_counter_normalized[0, 0:-1]))
-            self.cycle_percent_sets[1].replace(1,
+            self.cycle_percent_sets[1].replace(0,
                                                self.inference_sm.class_occurrence_counter_normalized[0, -1])
 
             # Convert frame to QT6 format
