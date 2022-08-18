@@ -133,6 +133,7 @@ class MainWindow(QWidget):
         self.chart_cycle_percent = QChart()
         self.axis_y_cycle_percent = QBarCategoryAxis()
         self.categories_cycle_percent = ["Cycle"]
+        self.axis_x_cycle_percent = QValueAxis()
         self._chart_view_cycle_percent = None
 
         # Testing
@@ -176,7 +177,9 @@ class MainWindow(QWidget):
         # Initialize all the threads
         self.Worker1 = Worker1()
         self.Worker1.ImageUpdate.connect(self.image_update_slot)
+        # Transfer the plot control to Worker
         self.Worker1.time_sets_bysteps = self.time_sets_bysteps
+        self.Worker1.cycle_percent_sets = self.cycle_percent_sets
 
         # Set a layout
         self.setLayout(layout)
@@ -355,6 +358,7 @@ class MainWindow(QWidget):
         self.time_series_bystep.attachAxis(self.axis_y_step_time)
         # X-axis
         self.axis_x_step_time.setRange(0, 100)
+        self.axis_x_step_time.setTickCount(10)
         self.chart_step_time.addAxis(self.axis_x_step_time, Qt.AlignmentFlag.AlignBottom)
         self.time_series_bystep.attachAxis(self.axis_x_step_time)
         # Chart View for the Step-time bar chart
@@ -365,7 +369,10 @@ class MainWindow(QWidget):
         # Only Y-axis
         self.axis_y_cycle_percent.append(self.categories_cycle_percent)
         self.chart_cycle_percent.addAxis(self.axis_y_cycle_percent, Qt.AlignmentFlag.AlignLeft)
+        self.axis_x_cycle_percent.setTickCount(10)
+        self.chart_cycle_percent.addAxis(self.axis_x_cycle_percent, Qt.AlignmentFlag.AlignBottom)
         self.cycle_percent_series.attachAxis(self.axis_y_cycle_percent)
+        self.cycle_percent_series.attachAxis(self.axis_x_cycle_percent)
         # Chart View for the Cycle percent chart
         self._chart_view_cycle_percent = QChartView(self.chart_cycle_percent)
 
@@ -395,7 +402,9 @@ class Worker1(QThread):
         self.inference_sm = None
         self.classes_to_states = None
 
+        # Transfer of plotting information
         self.time_sets_bysteps = None
+        self.cycle_percent_sets = None
 
     def run(self):
 
@@ -429,9 +438,17 @@ class Worker1(QThread):
             # Update the state machine
             status = self.inference_sm.update_state(majority_vote=majority_vote)
 
-            # update the plots
+            # Update the Step time plot
             current_state = self.inference_sm.get_current_state(self.inference_sm.states)
-            self.time_sets_bysteps[0].replace(current_state, self.inference_sm.class_occurrence_counter_normalized[0, current_state])
+            self.time_sets_bysteps[0].replace(current_state,
+                                              self.inference_sm.class_occurrence_counter_normalized[0, current_state])
+            self.time_sets_bysteps[1].remove(0, count=len(self.inference_sm.states))
+            self.time_sets_bysteps[1].append(self.inference_sm.class_occurrence_counter_normalized_no_other.tolist()[0])
+            # Update the Cycle time percentage plot
+            self.cycle_percent_sets[0].replace(0,
+                                               np.sum(self.inference_sm.class_occurrence_counter_normalized[0, 0:-1]))
+            self.cycle_percent_sets[1].replace(1,
+                                               self.inference_sm.class_occurrence_counter_normalized[0, -1])
 
             # Convert frame to QT6 format
             frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
