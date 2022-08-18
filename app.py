@@ -251,27 +251,17 @@ class MainWindow(QWidget):
             self.initialize_charts(num_steps=6)
 
         # Create plots appropriately
-        # Add the plots to the vbox
-        # Bar charts
-        # For the bar plots
-        # self.vbox_bar_plots = QVBoxLayout()
-        # self.vbox_bar_plots.setContentsMargins(0, 0, 0, 0)
-        # self.vbox_bar_plots.addWidget(self._chart_view_cycle_percent,
-        #                               alignment=Qt.AlignmentFlag.AlignTop)
-        # self.vbox_bar_plots.addWidget(self._chart_view_step_time, alignment=Qt.AlignmentFlag.AlignBottom)
         # Line chart
         self.vbox_video.addWidget(self._chart_view_cycle_line)
         # Transfer the plot control to Worker
         self.Worker1.time_sets_bysteps = self.time_sets_bysteps
         self.Worker1.cycle_percent_sets = self.cycle_percent_sets
 
-        # Add the charts to the layout
-        self.layout.addLayout(self.vbox_video, 2, 3, 3, 5)
+        # Add the charts to the layout - Modify
+        self.layout.addLayout(self.vbox_video, 2, 4, 8, 3)
         # self.layout.addLayout(self.vbox_bar_plots, 2, 0, 3, 3)
-        self.layout.addWidget(self._chart_view_cycle_percent, 2, 0, 3, 5)
-        self.layout.addWidget(self._chart_view_step_time, 5, 0, 5, 5)
-        # Reset the layout
-        # self.setLayout(self.layout)
+        self.layout.addWidget(self._chart_view_cycle_percent, 2, 0, 3, 4)
+        self.layout.addWidget(self._chart_view_step_time, 5, 0, 5, 4)
 
         # Enable the inference button
         self.play_btn.setEnabled(True)
