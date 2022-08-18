@@ -2,7 +2,7 @@ from PyQt6.QtWidgets import QApplication, QWidget, QPushButton, QHBoxLayout, QVB
     QGridLayout, QComboBox, QDial, QGroupBox
 from PyQt6.QtGui import QIcon, QImage, QPixmap, QPainter
 from PyQt6.QtCharts import QBarSet, QChart, QChartView, QBarCategoryAxis, QValueAxis, QHorizontalStackedBarSeries, \
-    QHorizontalPercentBarSeries
+    QHorizontalPercentBarSeries, QLineSeries
 from PyQt6.QtCore import QThread, pyqtSignal, Qt
 from InferenceModule.state_machine import StateMachine
 from InferenceModule.inferences import C3DOpticalFlowRealTime
@@ -31,24 +31,29 @@ class MainWindow(QWidget):
         # Load video
         self.load_video_btn = QPushButton("Load Video")
         self.load_video_btn.setEnabled(True)
+        self.load_video_btn.setIcon(self.style().standardIcon(QStyle.StandardPixmap.SP_DirIcon))
         self.load_video_btn.clicked.connect(self.open_file)
         # Play Button
-        self.play_btn = QPushButton()
+        self.play_btn = QPushButton("Start Inference")
         self.play_btn.setEnabled(False)
         self.play_btn.setIcon(self.style().standardIcon(QStyle.StandardPixmap.SP_MediaPlay))
         self.play_btn.clicked.connect(self.start_inference)
         # Cancel Inference
-        self.cancel_btn = QPushButton()
+        self.cancel_btn = QPushButton("Stop Inference")
         self.cancel_btn.setEnabled(False)
         self.cancel_btn.setIcon(self.style().standardIcon(QStyle.StandardPixmap.SP_MediaStop))
         self.cancel_btn.clicked.connect(self.cancel_feed)
         # Load the model for inference
         self.load_model_btn = QPushButton("Load Model")
         self.load_model_btn.setEnabled(True)
+        self.load_model_btn.setFixedWidth(200)
+        self.load_model_btn.setIcon(self.style().standardIcon(QStyle.StandardPixmap.SP_DirIcon))
         self.load_model_btn.clicked.connect(self.open_file_model)
         # Initialization button
-        self.initialize_all = QPushButton("Initialize")
+        self.initialize_all = QPushButton("Initialize Inference Module")
         self.initialize_all.setEnabled(False)
+        self.initialize_all.setFixedHeight(100)
+        self.initialize_all.setIcon(self.style().standardIcon(QStyle.StandardPixmap.SP_CommandLink))
         self.initialize_all.clicked.connect(self.initialize_all_fn)
 
         # Combo boxes
@@ -135,6 +140,12 @@ class MainWindow(QWidget):
         self.categories_cycle_percent = ["Cycle"]
         self.axis_x_cycle_percent = QValueAxis()
         self._chart_view_cycle_percent = None
+        # Creating a line chart
+        self.cycle_time_linechart_series = QLineSeries()
+        self.chart_cycle_time_line = QChart()
+        self.chart_cycle_time_line.addSeries(self.cycle_time_linechart_series)
+        self.chart_cycle_time_line.createDefaultAxes()
+        self._chart_view_cycle_line = QChartView(self.chart_cycle_time_line)
 
         # Testing
         self.initialize_charts(num_steps=6)
@@ -165,6 +176,7 @@ class MainWindow(QWidget):
         vbox_video = QVBoxLayout()
         vbox_video.setContentsMargins(0, 0, 0, 0)
         vbox_video.addWidget(self.feed_label)
+        vbox_video.addWidget(self._chart_view_cycle_line)
 
         # Make a grid
         layout = QGridLayout()
@@ -256,6 +268,7 @@ class MainWindow(QWidget):
 
         # Update button states
         self.load_video_btn.setEnabled(True)
+        self.load_model_btn.setEnabled(True)
         self.play_btn.setEnabled(True)
 
     def inference_machine_dial_value_changed(self):
@@ -302,13 +315,13 @@ class MainWindow(QWidget):
             self.file_name = file_name
             self.Worker1.file_name = file_name
             if self.model_file_name is not None:
-                # self.play_btn.setEnabled(True)
-                # self.cancel_btn.setEnabled(True)
                 # Enable all dials
                 self.inference_machine_dial.setEnabled(True)
                 self.sm_dial1.setEnabled(True)
                 self.sm_dial2.setEnabled(True)
                 self.initialize_all.setEnabled(True)
+            # Disable the button
+            self.load_video_btn.setEnabled(False)
 
     def open_file_model(self):
 
@@ -324,6 +337,8 @@ class MainWindow(QWidget):
                 self.sm_dial1.setEnabled(True)
                 self.sm_dial2.setEnabled(True)
                 self.initialize_all.setEnabled(True)
+            # Disable the button
+            self.load_model_btn.setEnabled(False)
 
     def initialize_charts(self, num_steps):
 
@@ -333,7 +348,7 @@ class MainWindow(QWidget):
 
         # Initialize timers
         timer_init = [0] * (num_steps + 1)
-        percent_init = [1] * 2
+        percent_init = [0] * 2
 
         # Chart creation for both bar charts
         for step in range(2):
