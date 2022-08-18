@@ -24,8 +24,8 @@ class MainWindow(QWidget):
         self.model_file_name = None
 
         # GroupBox
-        model_gb = QGroupBox("Model parameters")
-        video_gp = QGroupBox("Video Information")
+        self.model_gb = QGroupBox("Model parameters")
+        self.video_gp = QGroupBox("Video Information")
 
         # Buttons
         # Load video
@@ -129,14 +129,13 @@ class MainWindow(QWidget):
         self.chart_step_time = QChart()
         self.axis_y_step_time = QBarCategoryAxis()
         self.axis_x_step_time = QValueAxis()
-        self.categories_step_time = ["Position Motherboard", "Attach Bracket", "Secure Motherboard", "Insert Card",
-                                     "Attach Device", "Remove Battery", "Others"]
         self._chart_view_step_time = None
         # BarPlots - Percentage of Value added activities
         self.cycle_percent_sets = []
         self.cycle_percent_series = QHorizontalPercentBarSeries()
         self.chart_cycle_percent = QChart()
         self.axis_y_cycle_percent = QBarCategoryAxis()
+        self.categories_step_time = None
         self.categories_cycle_percent = ["Cycle"]
         self.axis_x_cycle_percent = QValueAxis()
         self._chart_view_cycle_percent = None
@@ -147,16 +146,13 @@ class MainWindow(QWidget):
         self.chart_cycle_time_line.createDefaultAxes()
         self._chart_view_cycle_line = QChartView(self.chart_cycle_time_line)
 
-        # Testing
-        self.initialize_charts(num_steps=6)
-
         # For all buttons
         hbox_btns = QHBoxLayout()
         hbox_btns.setContentsMargins(0, 0, 0, 0)
         hbox_btns.addWidget(self.load_video_btn)
         hbox_btns.addWidget(self.play_btn)
         hbox_btns.addWidget(self.cancel_btn)
-        video_gp.setLayout(hbox_btns)
+        self.video_gp.setLayout(hbox_btns)
         # Other buttons
         hbox_btns_2 = QHBoxLayout()
         hbox_btns_2.setContentsMargins(0, 0, 0, 0)
@@ -165,36 +161,25 @@ class MainWindow(QWidget):
         hbox_btns_2.addWidget(self.initialize_all)
         hbox_btns_2.addLayout(inference_machine_dial_vbox)
         hbox_btns_2.addLayout(sm_dial_hbox)
-        model_gb.setLayout(hbox_btns_2)
+        self.model_gb.setLayout(hbox_btns_2)
 
-        # For the bar plots
-        vbox_bar_plots = QVBoxLayout()
-        vbox_bar_plots.setContentsMargins(0, 0, 0, 0)
-        vbox_bar_plots.addWidget(self._chart_view_cycle_percent)
-        vbox_bar_plots.addWidget(self._chart_view_step_time)
         # For the video being playing
-        vbox_video = QVBoxLayout()
-        vbox_video.setContentsMargins(0, 0, 0, 0)
-        vbox_video.addWidget(self.feed_label)
-        vbox_video.addWidget(self._chart_view_cycle_line)
+        self.vbox_video = QVBoxLayout()
+        self.vbox_video.setContentsMargins(0, 0, 0, 0)
+        self.vbox_video.addWidget(self.feed_label)
 
         # Make a grid
-        layout = QGridLayout()
+        self.layout = QGridLayout()
         # Add Buttons
-        layout.addWidget(video_gp, 0, 0, 1, 10)
-        layout.addWidget(model_gb, 1, 0, 1, 10)
-        layout.addLayout(vbox_bar_plots, 2, 0, 3, 3)
-        layout.addLayout(vbox_video, 2, 3, 3, 5)
+        self.layout.addWidget(self.video_gp, 0, 0, 1, 10)
+        self.layout.addWidget(self.model_gb, 1, 0, 1, 10)
 
         # Initialize all the threads
         self.Worker1 = Worker1()
         self.Worker1.ImageUpdate.connect(self.image_update_slot)
-        # Transfer the plot control to Worker
-        self.Worker1.time_sets_bysteps = self.time_sets_bysteps
-        self.Worker1.cycle_percent_sets = self.cycle_percent_sets
 
         # Set a layout
-        self.setLayout(layout)
+        self.setLayout(self.layout)
 
     def image_update_slot(self, image):
         self.feed_label.setPixmap(QPixmap.fromImage(image))
@@ -258,6 +243,35 @@ class MainWindow(QWidget):
             self.Worker1.inference_sm = StateMachine(state_dependencies=state_dependencies,
                                                      num_classes=len(state_dependencies),
                                                      timer=(self.sm_dial1.value()/10, self.sm_dial2.value()/10))
+
+            # Define the categories for step time plot
+            self.categories_step_time = ["Position Motherboard", "Attach Bracket", "Secure Motherboard", "Insert Card",
+                                         "Attach Device", "Remove Battery", "Others"]
+            # Enable the charts initialization
+            self.initialize_charts(num_steps=6)
+
+        # Create plots appropriately
+        # Add the plots to the vbox
+        # Bar charts
+        # For the bar plots
+        # self.vbox_bar_plots = QVBoxLayout()
+        # self.vbox_bar_plots.setContentsMargins(0, 0, 0, 0)
+        # self.vbox_bar_plots.addWidget(self._chart_view_cycle_percent,
+        #                               alignment=Qt.AlignmentFlag.AlignTop)
+        # self.vbox_bar_plots.addWidget(self._chart_view_step_time, alignment=Qt.AlignmentFlag.AlignBottom)
+        # Line chart
+        self.vbox_video.addWidget(self._chart_view_cycle_line)
+        # Transfer the plot control to Worker
+        self.Worker1.time_sets_bysteps = self.time_sets_bysteps
+        self.Worker1.cycle_percent_sets = self.cycle_percent_sets
+
+        # Add the charts to the layout
+        self.layout.addLayout(self.vbox_video, 2, 3, 3, 5)
+        # self.layout.addLayout(self.vbox_bar_plots, 2, 0, 3, 3)
+        self.layout.addWidget(self._chart_view_cycle_percent, 2, 0, 3, 5)
+        self.layout.addWidget(self._chart_view_step_time, 5, 0, 5, 5)
+        # Reset the layout
+        # self.setLayout(self.layout)
 
         # Enable the inference button
         self.play_btn.setEnabled(True)
