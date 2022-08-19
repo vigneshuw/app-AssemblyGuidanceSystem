@@ -52,7 +52,7 @@ class StateMachineDB:
         except Error as e:
             sys.stdout.write(f"{e}\n")
 
-    def inset_data(self, assembly_op, params):
+    def insert_data(self, assembly_op, params):
 
         # Get the query
         query = "INSERT INTO " + assembly_op + " "

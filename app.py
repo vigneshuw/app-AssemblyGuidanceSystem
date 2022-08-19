@@ -182,9 +182,6 @@ class MainWindow(QWidget):
         # Set a layout
         self.setLayout(self.layout)
 
-        # Initialize database
-        self.sm_database = StateMachineDB()
-
     def image_update_slot(self, image):
         self.feed_label.setPixmap(QPixmap.fromImage(image))
 
@@ -272,12 +269,6 @@ class MainWindow(QWidget):
         # Enable the inference button
         self.play_btn.setEnabled(True)
         self.cancel_btn.setEnabled(True)
-
-        # Connect the database
-        self.sm_database.connect()
-        self.sm_database.create_table(assembly_op)
-        # Transfer to Worker1
-        self.Worker1.sm_database = self.sm_database
 
     def cancel_feed(self):
         self.Worker1.stop()
@@ -438,13 +429,18 @@ class Worker1(QThread):
         self.cycle_percent_sets = None
 
         # Database connections
-        self.sm_database = None
+        self.sm_database = StateMachineDB()
         self.assembly_op = None
 
     def run(self):
 
         self.thread_active = True
         cap = cv2.VideoCapture(self.file_name)
+
+        # Establish the DB connection
+        # Connect the database
+        self.sm_database.connect()
+        self.sm_database.create_table(self.assembly_op)
 
         while self.thread_active and cap.isOpened():
 
@@ -509,6 +505,8 @@ class Worker1(QThread):
         self.construct_insert_sql_data()
         # Make a commit to database
         self.sm_database.db_conn.commit()
+        # Close the DB connection
+        self.sm_database.db_conn.close()
 
         cap.release()
         self.thread_active = False
@@ -517,6 +515,8 @@ class Worker1(QThread):
         self.thread_active = False
         # Make a commit to database
         self.sm_database.db_conn.commit()
+        # Close the DB connection
+        self.sm_database.db_conn.close()
 
         # Close the thread
         self.quit()
@@ -527,7 +527,9 @@ class Worker1(QThread):
         if summary is not None:
             # Insert data into the database
             # Convert items to appropriate for database
-            step_time_str = repr(summary["class_occurrence_time"].tolist()[0])
+            temp_step_time = summary["class_occurrence_time"].tolist()[0]
+            temp_step_time = [round(x, 2) for x in temp_step_time]
+            step_time_str = repr(temp_step_time)
             sequence_break_flag = summary["sequence_break_flag"]
             if sequence_break_flag:
                 sequence_break_items_str = repr(summary["sequence_break_list"])
