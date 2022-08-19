@@ -12,6 +12,7 @@ import os
 import numpy as np
 from collections import Counter
 from tensorflow import keras
+from database import StateMachineDB
 
 
 class MainWindow(QWidget):
@@ -181,6 +182,9 @@ class MainWindow(QWidget):
         # Set a layout
         self.setLayout(self.layout)
 
+        # Initialize database
+        self.sm_database = StateMachineDB()
+
     def image_update_slot(self, image):
         self.feed_label.setPixmap(QPixmap.fromImage(image))
 
@@ -194,6 +198,8 @@ class MainWindow(QWidget):
 
         # Initialize the State Machine
         assembly_index = self.assembly_selection.currentIndex()
+        assembly_op = self.assembly_selection.currentText()
+        self.Worker1.assembly_op = assembly_op
         # Assign the values appropriately
         if assembly_index == 1:
             sys.stdout.write("Not Implemented\n")
@@ -266,6 +272,12 @@ class MainWindow(QWidget):
         # Enable the inference button
         self.play_btn.setEnabled(True)
         self.cancel_btn.setEnabled(True)
+
+        # Connect the database
+        self.sm_database.connect()
+        self.sm_database.create_table(assembly_op)
+        # Transfer to Worker1
+        self.Worker1.sm_database = self.sm_database
 
     def cancel_feed(self):
         self.Worker1.stop()
@@ -425,6 +437,10 @@ class Worker1(QThread):
         self.time_sets_bysteps = None
         self.cycle_percent_sets = None
 
+        # Database connections
+        self.sm_database = None
+        self.assembly_op = None
+
     def run(self):
 
         self.thread_active = True
@@ -469,7 +485,19 @@ class Worker1(QThread):
             self.cycle_percent_sets[1].replace(0,
                                                self.inference_sm.class_occurrence_counter_normalized[0, -1])
 
-            # Convert frame to QT6 format
+            # When there is a cycle reset happening
+            if status:
+                # Get the summary
+                summary = self.inference_sm.summary[-1]
+
+                # Insert data into the database
+                # Convert items to appropriate for database
+                self.construct_insert_sql_data(summary=summary)
+
+                # Get the cycle time and add to line plot
+
+
+            # Convert frame to QT6 format for display
             frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
             frame = QImage(frame.data, frame.shape[1], frame.shape[0], QImage.Format.Format_RGB888)
             frame = frame.scaled(640, 480, Qt.AspectRatioMode.KeepAspectRatio)
@@ -477,12 +505,56 @@ class Worker1(QThread):
             # Emit the thread
             self.ImageUpdate.emit(frame)
 
+        # When we run out of video length
+        self.construct_insert_sql_data()
+        # Make a commit to database
+        self.sm_database.db_conn.commit()
+
         cap.release()
         self.thread_active = False
 
     def stop(self):
         self.thread_active = False
+        # Make a commit to database
+        self.sm_database.db_conn.commit()
+
+        # Close the thread
         self.quit()
+
+    def construct_insert_sql_data(self, summary=None):
+
+        # When the cycle completes
+        if summary is not None:
+            # Insert data into the database
+            # Convert items to appropriate for database
+            step_time_str = repr(summary["class_occurrence_time"].tolist()[0])
+            sequence_break_flag = summary["sequence_break_flag"]
+            if sequence_break_flag:
+                sequence_break_items_str = repr(summary["sequence_break_list"])
+            else:
+                sequence_break_items_str = None
+            missed_steps_str = summary["untouched_states"]
+            if not missed_steps_str:
+                missed_steps_str = None
+            else:
+                missed_steps_str = repr(missed_steps_str)
+            states_sequence_str = repr(summary["state_changes"])
+
+            # Insert data into database
+            params = [step_time_str, sequence_break_items_str, sequence_break_flag, missed_steps_str,
+                      states_sequence_str]
+            self.sm_database.insert_data(self.assembly_op, params)
+
+        else:
+            # First construct the summary
+            summary = {
+                "class_occurrence_time": self.inference_sm.class_occurrence_counter_normalized,
+                "sequence_break_flag": self.inference_sm.sequence_break_flag,
+                "sequence_break_list": self.inference_sm.sequence_break_list,
+                "untouched_states": self.inference_sm.untouched_states,
+                "state_changes": self.inference_sm.state_changes
+            }
+            self.construct_insert_sql_data(summary=summary)
 
 
 if __name__ == '__main__':

@@ -5,6 +5,7 @@
 **/garbage_collector
 **/__pycache__
 **/.idea
+**/database
 
 # Files
 .idea/misc.xml
