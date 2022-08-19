@@ -3,7 +3,7 @@ from PyQt6.QtWidgets import QApplication, QWidget, QPushButton, QHBoxLayout, QVB
 from PyQt6.QtGui import QIcon, QImage, QPixmap, QPainter
 from PyQt6.QtCharts import QBarSet, QChart, QChartView, QBarCategoryAxis, QValueAxis, QHorizontalStackedBarSeries, \
     QHorizontalPercentBarSeries, QLineSeries
-from PyQt6.QtCore import QThread, pyqtSignal, Qt
+from PyQt6.QtCore import QThread, pyqtSignal, Qt, QPointF
 from InferenceModule.state_machine import StateMachine
 from InferenceModule.inferences import C3DOpticalFlowRealTime
 import sys
@@ -147,14 +147,16 @@ class MainWindow(QWidget):
         self.chart_cycle_time_line.setTitle("Past Cycle Time")
         self.axis_x_cycle_time_line = QValueAxis()
         self.axis_x_cycle_time_line.setTitleText("Cycle Count")
+        self.axis_x_cycle_time_line.setRange(1, 10)
+        self.axis_x_cycle_time_line.setTickCount(10)
         self.chart_cycle_time_line.addAxis(self.axis_x_cycle_time_line, Qt.AlignmentFlag.AlignBottom)
         self.cycle_time_linechart_series.attachAxis(self.axis_x_cycle_time_line)
         self.axis_y_cycle_time_line = QValueAxis()
         self.axis_y_cycle_time_line.setTitleText("Time (s)")
+        self.axis_y_cycle_time_line.setRange(10, 250)
         self.chart_cycle_time_line.addAxis(self.axis_y_cycle_time_line, Qt.AlignmentFlag.AlignLeft)
         self.cycle_time_linechart_series.attachAxis(self.axis_y_cycle_time_line)
         self._chart_view_cycle_line = QChartView(self.chart_cycle_time_line)
-        # self.cycle_time_linechart_series.
 
         # For all buttons
         hbox_btns = QHBoxLayout()
@@ -187,6 +189,9 @@ class MainWindow(QWidget):
         # Initialize all the threads
         self.Worker1 = Worker1()
         self.Worker1.ImageUpdate.connect(self.image_update_slot)
+
+        # Hand-offs
+        self.Worker1.cycle_time_line_series = self.cycle_time_linechart_series
 
         # Set a layout
         self.setLayout(self.layout)
@@ -439,6 +444,7 @@ class Worker1(QThread):
         # Transfer of plotting information
         self.time_sets_bysteps = None
         self.cycle_percent_sets = None
+        self.cycle_time_line_series = None
 
         # Database connections
         self.sm_database = StateMachineDB()
@@ -456,10 +462,13 @@ class Worker1(QThread):
 
         # Query the last 5 rows for the cycle-time line plot
         rows = self.sm_database.query_last_rows(assembly_op=self.assembly_op)
-        # if rows:
-        #     for row in rows:
-
-
+        if rows:
+            for row in rows:
+                # Get cycle time
+                cycle_time = sum(eval(row[2]))
+                print(cycle_time, row[0])
+                # Update the plot
+                self.cycle_time_line_series.append(row[0], cycle_time)
 
         while self.thread_active and cap.isOpened():
 
@@ -532,11 +541,6 @@ class Worker1(QThread):
 
     def stop(self):
         self.thread_active = False
-        # Make a commit to database
-        self.sm_database.db_conn.commit()
-        # Close the DB connection
-        self.sm_database.db_conn.close()
-
         # Close the thread
         self.quit()
 
