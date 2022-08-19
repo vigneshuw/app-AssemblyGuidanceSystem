@@ -64,6 +64,7 @@ class StateMachineDB:
         try:
             cursor = self.db_conn.cursor()
             cursor.execute(query, params)
+            return cursor.lastrowid
         except Error as e:
             sys.stdout.write(f"{e}\n")
 

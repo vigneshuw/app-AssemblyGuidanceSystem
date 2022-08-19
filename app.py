@@ -192,6 +192,7 @@ class MainWindow(QWidget):
 
         # Hand-offs
         self.Worker1.cycle_time_line_series = self.cycle_time_linechart_series
+        self.Worker1.axis_x_cycle_time_line = self.axis_x_cycle_time_line
 
         # Set a layout
         self.setLayout(self.layout)
@@ -445,6 +446,7 @@ class Worker1(QThread):
         self.time_sets_bysteps = None
         self.cycle_percent_sets = None
         self.cycle_time_line_series = None
+        self.axis_x_cycle_time_line = None
 
         # Database connections
         self.sm_database = StateMachineDB()
@@ -516,10 +518,22 @@ class Worker1(QThread):
 
                 # Insert data into the database
                 # Convert items to appropriate for database
-                self.construct_insert_sql_data(summary=summary)
+                row_id = self.construct_insert_sql_data(summary=summary)
 
+                # Update plots
                 # Get the cycle time and add to line plot
+                cycle_time = summary["class_occurrence_time"].tolist()[0]
+                self.cycle_time_line_series.append(row_id, cycle_time)
+                # Clear up other plots
+                self.time_sets_bysteps[0].remove(0, count=len(self.inference_sm.states))
+                self.time_sets_bysteps[0].append([0] * len(self.inference_sm.states))
 
+                # Check the line chart count and update
+                if self.cycle_time_line_series.count() >= 10:
+                    # Update the line chart params
+                    self.cycle_time_line_series.removePoints(0, 5)
+                    # Move the axis
+                    self.axis_x_cycle_time_line.setRange(row_id - 5, row_id + 5)
 
             # Convert frame to QT6 format for display
             frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
@@ -568,7 +582,7 @@ class Worker1(QThread):
             # Insert data into database
             params = [step_time_str, sequence_break_items_str, sequence_break_flag, missed_steps_str,
                       states_sequence_str]
-            self.sm_database.insert_data(self.assembly_op, params)
+            return self.sm_database.insert_data(self.assembly_op, params)
 
         else:
             # First construct the summary
