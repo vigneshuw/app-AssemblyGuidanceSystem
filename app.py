@@ -144,8 +144,17 @@ class MainWindow(QWidget):
         self.cycle_time_linechart_series = QLineSeries()
         self.chart_cycle_time_line = QChart()
         self.chart_cycle_time_line.addSeries(self.cycle_time_linechart_series)
-        self.chart_cycle_time_line.createDefaultAxes()
+        self.chart_cycle_time_line.setTitle("Past Cycle Time")
+        self.axis_x_cycle_time_line = QValueAxis()
+        self.axis_x_cycle_time_line.setTitleText("Cycle Count")
+        self.chart_cycle_time_line.addAxis(self.axis_x_cycle_time_line, Qt.AlignmentFlag.AlignBottom)
+        self.cycle_time_linechart_series.attachAxis(self.axis_x_cycle_time_line)
+        self.axis_y_cycle_time_line = QValueAxis()
+        self.axis_y_cycle_time_line.setTitleText("Time (s)")
+        self.chart_cycle_time_line.addAxis(self.axis_y_cycle_time_line, Qt.AlignmentFlag.AlignLeft)
+        self.cycle_time_linechart_series.attachAxis(self.axis_y_cycle_time_line)
         self._chart_view_cycle_line = QChartView(self.chart_cycle_time_line)
+        # self.cycle_time_linechart_series.
 
         # For all buttons
         hbox_btns = QHBoxLayout()
@@ -382,16 +391,19 @@ class MainWindow(QWidget):
         self.axis_x_step_time.setRange(0, 100)
         self.axis_x_step_time.setTickCount(10)
         self.chart_step_time.addAxis(self.axis_x_step_time, Qt.AlignmentFlag.AlignBottom)
+        self.axis_x_step_time.setTitleText("Time(s)")
         self.time_series_bystep.attachAxis(self.axis_x_step_time)
         # Chart View for the Step-time bar chart
         self._chart_view_step_time = QChartView(self.chart_step_time)
 
         # Initialize the cycle time percentage bar chart
         self.chart_cycle_percent.addSeries(self.cycle_percent_series)
+        self.chart_cycle_percent.setTitle("Cycle Time")
         # Only Y-axis
         self.axis_y_cycle_percent.append(self.categories_cycle_percent)
         self.chart_cycle_percent.addAxis(self.axis_y_cycle_percent, Qt.AlignmentFlag.AlignLeft)
         self.axis_x_cycle_percent.setTickCount(10)
+        self.axis_x_cycle_percent.setTitleText("Percentage")
         self.chart_cycle_percent.addAxis(self.axis_x_cycle_percent, Qt.AlignmentFlag.AlignBottom)
         self.cycle_percent_series.attachAxis(self.axis_y_cycle_percent)
         self.cycle_percent_series.attachAxis(self.axis_x_cycle_percent)
@@ -441,6 +453,13 @@ class Worker1(QThread):
         # Connect the database
         self.sm_database.connect()
         self.sm_database.create_table(self.assembly_op)
+
+        # Query the last 5 rows for the cycle-time line plot
+        rows = self.sm_database.query_last_rows(assembly_op=self.assembly_op)
+        # if rows:
+        #     for row in rows:
+
+
 
         while self.thread_active and cap.isOpened():
 
