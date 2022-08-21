@@ -399,7 +399,11 @@ class StateMachine:
 
             elif self.past_state is self.state_ids[-1] and not self.first_inference:
                 # Don't check the "Other" state but check one before
-                state_one_before = self.state_changes[-3]
+                try:
+                    state_one_before = self.state_changes[-3]
+                except IndexError:
+                    # In the case the "Other" happens immediately after first step
+                    state_one_before = 0
                 if state_one_before not in input_states and state_one_before is not current_state:
                     # The detected state has occurred only within 2.0s
                     if int(self.class_occurrence_counter_normalized[0, current_state]) <= self.max_timer + 0.5:
