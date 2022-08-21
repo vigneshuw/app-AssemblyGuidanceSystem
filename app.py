@@ -157,6 +157,8 @@ class MainWindow(QWidget):
         self.chart_cycle_time_line.addAxis(self.axis_y_cycle_time_line, Qt.AlignmentFlag.AlignLeft)
         self.cycle_time_linechart_series.attachAxis(self.axis_y_cycle_time_line)
         self._chart_view_cycle_line = QChartView(self.chart_cycle_time_line)
+        # Line chart clicking functionalities
+        self.cycle_time_linechart_series.doubleClicked.connect(self.line_chart_clicked_slot)
 
         # For all buttons
         hbox_btns = QHBoxLayout()
@@ -199,6 +201,9 @@ class MainWindow(QWidget):
 
     def image_update_slot(self, image):
         self.feed_label.setPixmap(QPixmap.fromImage(image))
+
+    def line_chart_clicked_slot(self, point):
+        print(point)
 
     def initialize_all_fn(self):
 
@@ -522,7 +527,7 @@ class Worker1(QThread):
 
                 # Update plots
                 # Get the cycle time and add to line plot
-                cycle_time = summary["class_occurrence_time"].tolist()[0]
+                cycle_time = sum(summary["class_occurrence_time"].tolist()[0])
                 self.cycle_time_line_series.append(row_id, cycle_time)
                 # Clear up other plots
                 self.time_sets_bysteps[0].remove(0, count=len(self.inference_sm.states))

@@ -273,6 +273,8 @@ class StateMachine:
             self.time_states_visited = []
             self.current_state_counter = self.cycle_reset_timer
 
+            return True
+
         # Return if there is a need to update state
         return self.reset_state_machine
 
