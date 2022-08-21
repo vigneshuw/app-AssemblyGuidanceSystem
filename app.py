@@ -88,7 +88,7 @@ class MainWindow(QWidget):
         sm_dial2_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.sm_dial1_label_value = QLabel("3.0s")
         self.sm_dial1_label_value.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.sm_dial2_label_value = QLabel("2.0s")
+        self.sm_dial2_label_value = QLabel("1.0s")
         self.sm_dial2_label_value.setAlignment(Qt.AlignmentFlag.AlignCenter)
         # SM Dial-1
         self.sm_dial1 = QDial()
@@ -105,7 +105,7 @@ class MainWindow(QWidget):
         self.sm_dial2 = QDial()
         self.sm_dial2.setRange(5, 50)
         self.sm_dial2.setSingleStep(1)
-        self.sm_dial2.setValue(20)
+        self.sm_dial2.setValue(10)
         self.sm_dial2.setEnabled(False)
         self.sm_dial2.setNotchesVisible(True)
         self.sm_dial2.valueChanged.connect(self.sm_dial2_value_changed)
