@@ -1,6 +1,6 @@
 from PyQt6.QtWidgets import QApplication, QWidget, QPushButton, QHBoxLayout, QVBoxLayout, QStyle, QFileDialog, QLabel, \
     QGridLayout, QComboBox, QDial, QGroupBox, QRadioButton, QStackedLayout
-from PyQt6.QtGui import QIcon, QImage, QPixmap, QPainter, QFont
+from PyQt6.QtGui import QIcon, QImage, QPixmap, QPainter, QFont, QColor
 from PyQt6.QtCharts import QBarSet, QChart, QChartView, QBarCategoryAxis, QValueAxis, QHorizontalStackedBarSeries, \
     QHorizontalPercentBarSeries, QLineSeries
 from PyQt6.QtCore import QThread, pyqtSignal, Qt, QPointF
@@ -176,10 +176,14 @@ class MainWindow(QWidget):
         self.cycle_time_linechart_series.attachAxis(self.axis_x_cycle_time_line)
         self.axis_y_cycle_time_line = QValueAxis()
         self.axis_y_cycle_time_line.setTitleText("Time (s)")
-        self.axis_y_cycle_time_line.setRange(10, 250)
+        self.axis_y_cycle_time_line.setRange(100, 500)
         self.chart_cycle_time_line.addAxis(self.axis_y_cycle_time_line, Qt.AlignmentFlag.AlignLeft)
         self.cycle_time_linechart_series.attachAxis(self.axis_y_cycle_time_line)
         self._chart_view_cycle_line = QChartView(self.chart_cycle_time_line)
+        # Set Point properties
+        self.cycle_time_linechart_series.setMarkerSize(8)
+        self.cycle_time_linechart_series.setPointsVisible(True)
+        self.cycle_time_linechart_series.setPointLabelsVisible(True)
         # Line chart clicking functionalities
         self.cycle_time_linechart_series.doubleClicked.connect(self.line_chart_clicked_slot)
 
@@ -255,7 +259,14 @@ class MainWindow(QWidget):
         self.feed_label.setPixmap(QPixmap.fromImage(image))
 
     def line_chart_clicked_slot(self, point):
-        print(point)
+        # Get the cycle ID
+        cycle_id = round(point.x())
+        # Query the database
+        self.sm_database_main = StateMachineDB()
+        self.sm_database_main.connect()
+
+        row = self.sm_database_main.select_by_id("Demo", cycle_id)
+        print(row)
         self.stacked_step_time.setCurrentIndex(1)
 
     def initialize_all_fn(self):
@@ -479,7 +490,7 @@ class MainWindow(QWidget):
         self.chart_step_time.addAxis(self.axis_y_step_time, Qt.AlignmentFlag.AlignLeft)
         self.time_series_bystep.attachAxis(self.axis_y_step_time)
         # X-axis
-        self.axis_x_step_time.setRange(0, 100)
+        self.axis_x_step_time.setRange(0, 200)
         self.axis_x_step_time.setTickCount(10)
         self.chart_step_time.addAxis(self.axis_x_step_time, Qt.AlignmentFlag.AlignBottom)
         self.axis_x_step_time.setTitleText("Time(s)")
@@ -578,12 +589,22 @@ class Worker1(QThread):
         # Query the last 5 rows for the cycle-time line plot
         rows = self.sm_database.query_last_rows(assembly_op=self.assembly_op)
         if rows:
+            # Update the cycle-time line plot
+            cycle_id = []
+            rows.reverse()
             for row in rows:
                 # Get cycle time
                 cycle_time = sum(eval(row[2]))
                 print(cycle_time, row[0])
                 # Update the plot
                 self.cycle_time_line_series.append(row[0], cycle_time)
+
+                # Store cycle IDs values
+                cycle_id.append(row[0])
+
+            # Adjust the range as appropriate
+            highest_cycle = max(cycle_id)
+            self.axis_x_cycle_time_line.setRange(highest_cycle - 5, highest_cycle + 5)
 
         while self.thread_active and cap.isOpened():
 
