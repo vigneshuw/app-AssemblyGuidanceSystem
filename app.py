@@ -1,5 +1,5 @@
 from PyQt6.QtWidgets import QApplication, QWidget, QPushButton, QHBoxLayout, QVBoxLayout, QStyle, QFileDialog, QLabel, \
-    QGridLayout, QComboBox, QDial, QGroupBox, QRadioButton
+    QGridLayout, QComboBox, QDial, QGroupBox, QRadioButton, QStackedLayout
 from PyQt6.QtGui import QIcon, QImage, QPixmap, QPainter, QFont
 from PyQt6.QtCharts import QBarSet, QChart, QChartView, QBarCategoryAxis, QValueAxis, QHorizontalStackedBarSeries, \
     QHorizontalPercentBarSeries, QLineSeries
@@ -8,6 +8,7 @@ from InferenceModule.state_machine import StateMachine
 from InferenceModule.inferences import C3DOpticalFlowRealTime
 import sys
 import cv2
+import copy
 import os
 import numpy as np
 from collections import Counter
@@ -133,6 +134,13 @@ class MainWindow(QWidget):
         self.axis_y_step_time = QBarCategoryAxis()
         self.axis_x_step_time = QValueAxis()
         self._chart_view_step_time = None
+        # Past BarPlot - Step Time
+        self.past_time_sets_bysteps = []
+        self.past_time_series_bystep = QHorizontalStackedBarSeries()
+        self.past_chart_step_time = QChart()
+        self.past_axis_y_step_time = QBarCategoryAxis()
+        self.past_axis_x_step_time = QValueAxis()
+        self._past_chart_view_step_time = None
         # BarPlots - Percentage of Value added activities
         self.cycle_percent_sets = []
         self.cycle_percent_series = QHorizontalPercentBarSeries()
@@ -142,6 +150,15 @@ class MainWindow(QWidget):
         self.categories_cycle_percent = ["Cycle"]
         self.axis_x_cycle_percent = QValueAxis()
         self._chart_view_cycle_percent = None
+        # Past BarPlots - Percentage of Value added activities
+        self.past_cycle_percent_sets = []
+        self.past_cycle_percent_series = QHorizontalPercentBarSeries()
+        self.past_chart_cycle_percent = QChart()
+        self.past_axis_y_cycle_percent = QBarCategoryAxis()
+        self.past_categories_step_time = None
+        self.past_categories_cycle_percent = ["Cycle"]
+        self.past_axis_x_cycle_percent = QValueAxis()
+        self._past_chart_view_cycle_percent = None
         # Creating a line chart
         self.cycle_time_linechart_series = QLineSeries()
         self.chart_cycle_time_line = QChart()
@@ -235,6 +252,7 @@ class MainWindow(QWidget):
 
     def line_chart_clicked_slot(self, point):
         print(point)
+        self.stacked_step_time.setCurrentIndex(1)
 
     def initialize_all_fn(self):
 
@@ -318,20 +336,32 @@ class MainWindow(QWidget):
         # Add the charts to the layout - Modify
         self.layout.addLayout(self.vbox_video, 2, 4, 8, 3)
         # self.layout.addLayout(self.vbox_bar_plots, 2, 0, 3, 3)
+        # Create a stacket layout
+        self.stacked_step_time = QStackedLayout()
+        self.stacked_step_time.addWidget(self._chart_view_step_time)
+        self.stacked_step_time.addWidget(self._past_chart_view_step_time)
+        self.stacked_step_time.setCurrentIndex(0)
         self.layout.addWidget(self._chart_view_cycle_percent, 2, 0, 3, 4)
-        self.layout.addWidget(self._chart_view_step_time, 5, 0, 5, 4)
+        # self.layout.addWidget(self._chart_view_step_time, 5, 0, 5, 4)
+        self.layout.addLayout(self.stacked_step_time, 5, 0, 5, 4)
 
         # Enable the inference button
         self.play_btn.setEnabled(True)
         self.cancel_btn.setEnabled(True)
+        # Disable buttons
+        self.initialize_all.setEnabled(False)
 
     def cancel_feed(self):
+        # Stop the running processes
         self.Worker1.stop()
+        # TODO: Reset the whole thing
 
         # Update button states
         self.load_video_btn.setEnabled(True)
         self.load_model_btn.setEnabled(True)
         self.play_btn.setEnabled(True)
+
+        self.stacked_step_time.setCurrentIndex(1)
 
     def inference_machine_dial_value_changed(self):
 
@@ -416,9 +446,13 @@ class MainWindow(QWidget):
         for step in range(2):
             # Create sets and series for the step time bar chart
             bar_set = QBarSet(step_names[step])
+            past_bar_set = QBarSet(step_names[step])
             bar_set.append(timer_init)
+            past_bar_set.append()
             self.time_sets_bysteps.append(bar_set)
+            self.past_time_sets_bysteps.append(bar_set)
             self.time_series_bystep.append(self.time_sets_bysteps[step])
+            self.past_time_series_bystep.append(self.past_time_sets_bysteps[step])
 
             # Create sets and series for the percentage bar chart
             bar_set_percent = QBarSet(percent_names[step])
@@ -455,6 +489,28 @@ class MainWindow(QWidget):
         self.cycle_percent_series.attachAxis(self.axis_x_cycle_percent)
         # Chart View for the Cycle percent chart
         self._chart_view_cycle_percent = QChartView(self.chart_cycle_percent)
+
+        # The past charts - Step Time
+        self.past_chart_step_time.addSeries(self.past_time_series_bystep)
+        # Axes
+        self.past_axis_y_step_time.append(self.categories_step_time)
+        self.past_chart_step_time.addAxis(self.past_axis_y_step_time, Qt.AlignmentFlag.AlignLeft)
+        self.past_time_series_bystep.attachAxis(self.past_axis_y_step_time)
+        self.past_axis_x_step_time.setRange(0, 100)
+        self.past_axis_x_step_time.setTickCount(10)
+        self.past_chart_step_time.addAxis(self.past_axis_x_step_time, Qt.AlignmentFlag.AlignBottom)
+        self.past_axis_x_step_time.setTitleText("Time(s)")
+        self.past_time_series_bystep.attachAxis(self.past_axis_x_step_time)
+        # Chart View
+        self._past_chart_view_step_time = QChartView(self.past_chart_step_time)
+
+        # Past charts - Cycle Time
+        # self.past_cycle_percent_sets = copy.deepcopy(self.cycle_percent_sets)
+        # self.past_cycle_percent_series = copy.deepcopy(self.cycle_percent_series)
+        # self.past_axis_x_cycle_percent = copy.deepcopy(self.axis_x_cycle_percent)
+        # self.past_axis_y_cycle_percent = copy.deepcopy(self.axis_y_cycle_percent)
+        # self.past_chart_cycle_percent = copy.deepcopy(self.chart_cycle_percent)
+        # self._past_chart_view_cycle_percent = copy.deepcopy(self._chart_view_cycle_percent)
 
 
 class Worker1(QThread):
