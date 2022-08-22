@@ -30,7 +30,7 @@ class MainWindow(QWidget):
         # Buttons
         # Load video
         vbox_load_items = QVBoxLayout()
-        load_items_label = QLabel("(1) Load Video and Model")
+        load_items_label = QLabel("(1) Load Data")
         self.load_video_btn = QPushButton("Load Video")
         self.load_video_btn.setEnabled(True)
         self.load_video_btn.setIcon(self.style().standardIcon(QStyle.StandardPixmap.SP_DirIcon))
@@ -48,7 +48,6 @@ class MainWindow(QWidget):
         # Load the model for inference
         self.load_model_btn = QPushButton("Load Model")
         self.load_model_btn.setEnabled(True)
-        self.load_model_btn.setFixedWidth(200)
         self.load_model_btn.setIcon(self.style().standardIcon(QStyle.StandardPixmap.SP_DirIcon))
         self.load_model_btn.clicked.connect(self.open_file_model)
         # Initialization button
@@ -172,7 +171,7 @@ class MainWindow(QWidget):
         vbox_load_items.addWidget(self.load_model_btn)
         vbox_load_items.setAlignment(Qt.AlignmentFlag.AlignCenter)
         # Setting the assembly operation
-        select_assembly_ops_label = QLabel("(2) Select assembly operation")
+        select_assembly_ops_label = QLabel("(2) Assembly Type")
         select_assembly_ops_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         select_assembly_ops_label.setFont(QFont("Sanserif", 18))
         vbox_assembly_selection.addWidget(select_assembly_ops_label)
