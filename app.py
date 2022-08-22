@@ -1,6 +1,6 @@
 from PyQt6.QtWidgets import QApplication, QWidget, QPushButton, QHBoxLayout, QVBoxLayout, QStyle, QFileDialog, QLabel, \
-    QGridLayout, QComboBox, QDial, QGroupBox
-from PyQt6.QtGui import QIcon, QImage, QPixmap, QPainter
+    QGridLayout, QComboBox, QDial, QGroupBox, QRadioButton
+from PyQt6.QtGui import QIcon, QImage, QPixmap, QPainter, QFont
 from PyQt6.QtCharts import QBarSet, QChart, QChartView, QBarCategoryAxis, QValueAxis, QHorizontalStackedBarSeries, \
     QHorizontalPercentBarSeries, QLineSeries
 from PyQt6.QtCore import QThread, pyqtSignal, Qt, QPointF
@@ -25,11 +25,12 @@ class MainWindow(QWidget):
         self.model_file_name = None
 
         # GroupBox
-        self.model_gb = QGroupBox("Model parameters")
         self.video_gp = QGroupBox("Video Information")
 
         # Buttons
         # Load video
+        vbox_load_items = QVBoxLayout()
+        load_items_label = QLabel("(1) Load Video and Model")
         self.load_video_btn = QPushButton("Load Video")
         self.load_video_btn.setEnabled(True)
         self.load_video_btn.setIcon(self.style().standardIcon(QStyle.StandardPixmap.SP_DirIcon))
@@ -51,15 +52,17 @@ class MainWindow(QWidget):
         self.load_model_btn.setIcon(self.style().standardIcon(QStyle.StandardPixmap.SP_DirIcon))
         self.load_model_btn.clicked.connect(self.open_file_model)
         # Initialization button
-        self.initialize_all = QPushButton("Initialize Inference Module")
+        self.initialize_all = QPushButton("Initialize")
         self.initialize_all.setEnabled(False)
-        self.initialize_all.setFixedHeight(100)
+        self.initialize_all.setFixedHeight(50)
         self.initialize_all.setIcon(self.style().standardIcon(QStyle.StandardPixmap.SP_CommandLink))
         self.initialize_all.clicked.connect(self.initialize_all_fn)
 
-        # Combo boxes
-        self.assembly_selection = QComboBox()
-        self.assembly_selection.addItems(["Demo", "L10"])
+        # Radio Buttons
+        vbox_assembly_selection = QVBoxLayout()
+        self.assembly_selection_1 = QRadioButton("AssemblyDemo")
+        self.assembly_selection_1.setChecked(True)
+        self.assembly_selection_2 = QRadioButton("L10 Assembly Line")
 
         # Dials
         # The inference length dial
@@ -160,33 +163,62 @@ class MainWindow(QWidget):
         # Line chart clicking functionalities
         self.cycle_time_linechart_series.doubleClicked.connect(self.line_chart_clicked_slot)
 
+        # Assign buttons appropriately
+        # Loading model and video
+        load_items_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        load_items_label.setFont(QFont("Sanserif", 18))
+        vbox_load_items.addWidget(load_items_label)
+        vbox_load_items.addWidget(self.load_video_btn)
+        vbox_load_items.addWidget(self.load_model_btn)
+        vbox_load_items.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        # Setting the assembly operation
+        select_assembly_ops_label = QLabel("(2) Select assembly operation")
+        select_assembly_ops_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        select_assembly_ops_label.setFont(QFont("Sanserif", 18))
+        vbox_assembly_selection.addWidget(select_assembly_ops_label)
+        vbox_assembly_selection.addWidget(self.assembly_selection_1)
+        vbox_assembly_selection.addWidget(self.assembly_selection_2)
+        vbox_assembly_selection.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        vbox_assembly_selection.setSpacing(20)
+        # Inference Initialization
+        initialize_inference_label = QLabel("(3) Inference Module")
+        initialize_inference_label.setFont(QFont("Sanserif", 18))
+        vbox_initialize = QVBoxLayout()
+        vbox_initialize.addWidget(initialize_inference_label)
+        vbox_initialize.addWidget(self.initialize_all)
+        vbox_initialize.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        # The Start and Stop of Inference
+        inference_control_label = QLabel("(3) Inference Control")
+        inference_control_label.setFont(QFont("Sanserif", 18))
+        vbox_inference_control = QVBoxLayout()
+        vbox_inference_control.addWidget(inference_control_label)
+        vbox_inference_control.addWidget(self.play_btn)
+        vbox_inference_control.addWidget(self.cancel_btn)
+        vbox_inference_control.setAlignment(Qt.AlignmentFlag.AlignCenter)
+
         # For all buttons
         hbox_btns = QHBoxLayout()
         hbox_btns.setContentsMargins(0, 0, 0, 0)
-        hbox_btns.addWidget(self.load_video_btn)
-        hbox_btns.addWidget(self.play_btn)
-        hbox_btns.addWidget(self.cancel_btn)
+        hbox_btns.addLayout(vbox_load_items)
+        hbox_btns.addLayout(vbox_assembly_selection)
+        hbox_btns.addLayout(vbox_initialize)
+        hbox_btns.addLayout(inference_machine_dial_vbox)
+        hbox_btns.addLayout(sm_dial_hbox)
+        hbox_btns.addLayout(vbox_inference_control)
         self.video_gp.setLayout(hbox_btns)
-        # Other buttons
-        hbox_btns_2 = QHBoxLayout()
-        hbox_btns_2.setContentsMargins(0, 0, 0, 0)
-        hbox_btns_2.addWidget(self.load_model_btn)
-        hbox_btns_2.addWidget(self.assembly_selection)
-        hbox_btns_2.addWidget(self.initialize_all)
-        hbox_btns_2.addLayout(inference_machine_dial_vbox)
-        hbox_btns_2.addLayout(sm_dial_hbox)
-        self.model_gb.setLayout(hbox_btns_2)
+        self.video_gp.setFont(QFont("Sanserif", 14))
 
         # For the video being playing
         self.vbox_video = QVBoxLayout()
         self.vbox_video.setContentsMargins(0, 0, 0, 0)
         self.vbox_video.addWidget(self.feed_label)
 
+        # Set the maximum heights and stuff
+        self.video_gp.setMaximumHeight(150)
         # Make a grid
         self.layout = QGridLayout()
         # Add Buttons
         self.layout.addWidget(self.video_gp, 0, 0, 1, 10)
-        self.layout.addWidget(self.model_gb, 1, 0, 1, 10)
 
         # Initialize all the threads
         self.Worker1 = Worker1()
@@ -214,8 +246,12 @@ class MainWindow(QWidget):
                                                            inference_length=self.inference_machine_dial.value())
 
         # Initialize the State Machine
-        assembly_index = self.assembly_selection.currentIndex()
-        assembly_op = self.assembly_selection.currentText()
+        if self.assembly_selection_1.isChecked():
+            assembly_index = 0
+            assembly_op = "Demo"
+        elif self.assembly_selection_2.isChecked():
+            assembly_index = 1
+            assembly_op = "L10"
         self.Worker1.assembly_op = assembly_op
         # Assign the values appropriately
         if assembly_index == 1:
