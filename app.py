@@ -43,6 +43,7 @@ class MainWindow(QWidget):
 
         # GroupBox
         self.video_gp = QGroupBox("Video Information")
+        self.sequence_break_gp = QGroupBox("Anomalies Information")
 
         # Buttons
         # Load video
@@ -264,11 +265,13 @@ class MainWindow(QWidget):
 
         # Initialize all the threads
         self.Worker1 = Worker1()
+        self.Worker2 = Worker2()
         self.Worker1.ImageUpdate.connect(self.image_update_slot)
 
         # Hand-offs
         self.Worker1.cycle_time_line_series = self.cycle_time_linechart_series
         self.Worker1.axis_x_cycle_time_line = self.axis_x_cycle_time_line
+        self.Worker2.sequence_break_gp = self.sequence_break_gp
 
         # Set a layout
         self.setLayout(self.layout)
@@ -276,6 +279,9 @@ class MainWindow(QWidget):
         # Database connection from Main Thread
         self.sm_database_main = StateMachineDB()
         self.sm_database_main.connect()
+
+        # Starting threads
+        self.Worker2.start()
 
     def image_update_slot(self, image):
         self.feed_label.setPixmap(QPixmap.fromImage(image))
@@ -573,10 +579,27 @@ class MainWindow(QWidget):
         self._past_chart_view_cycle_percent = QChartView(self.past_chart_cycle_percent)
 
 
+class Worker2(QThread):
+
+    def __init__(self):
+        super(Worker2, self).__init__()
+
+        # Create the signal handlers
+        self.Worker1 = Worker1()
+        self.Worker1.SequenceBreak.connect(self.sequence_break_update_slot)
+
+    def sequence_break_update_slot(self, data):
+
+        print(data[0])
+
+
 class Worker1(QThread):
 
     # Signal to transmit data
+    # Image data
     ImageUpdate = pyqtSignal(QImage)
+    # Sequence break data
+    SequenceBreak = pyqtSignal(tuple)
 
     def __init__(self):
         super(Worker1, self).__init__()
@@ -711,6 +734,7 @@ class Worker1(QThread):
 
             # Emit the thread
             self.ImageUpdate.emit(frame)
+            self.SequenceBreak.emit(("Some",))
 
         # When we run out of video length
         self.construct_insert_sql_data()
