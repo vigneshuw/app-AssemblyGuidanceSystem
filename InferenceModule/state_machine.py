@@ -227,6 +227,7 @@ class StateMachine:
             summary = {
                 "class_occurrence_counter": self.class_occurrence_counter,
                 "class_occurrence_time": self.class_occurrence_counter_normalized,
+                "class_occurrence_time_no_other": self.class_occurrence_counter_normalized_no_other,
                 "current_state": self.get_current_state(self.states),
                 "sequence_break_list": self.sequence_break_list,
                 "sequence_break_flag": self.sequence_break_flag,
