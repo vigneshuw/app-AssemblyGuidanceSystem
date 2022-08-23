@@ -1,9 +1,9 @@
 from PyQt6.QtWidgets import QApplication, QWidget, QPushButton, QHBoxLayout, QVBoxLayout, QStyle, QFileDialog, QLabel, \
     QGridLayout, QComboBox, QDial, QGroupBox, QRadioButton, QStackedLayout
-from PyQt6.QtGui import QIcon, QImage, QPixmap, QPainter, QFont, QColor
+from PyQt6.QtGui import QIcon, QImage, QPixmap, QFont, QMouseEvent
 from PyQt6.QtCharts import QBarSet, QChart, QChartView, QBarCategoryAxis, QValueAxis, QHorizontalStackedBarSeries, \
     QHorizontalPercentBarSeries, QLineSeries
-from PyQt6.QtCore import QThread, pyqtSignal, Qt, QPointF
+from PyQt6.QtCore import QThread, pyqtSignal, Qt, QEvent
 from InferenceModule.state_machine import StateMachine
 from InferenceModule.inferences import C3DOpticalFlowRealTime
 import sys
@@ -14,6 +14,22 @@ import numpy as np
 from collections import Counter
 from tensorflow import keras
 from database import StateMachineDB
+
+
+class FeedLabel(QLabel):
+
+    def __init__(self, stacked_step_time, stacked_cycle_time):
+        super().__init__()
+
+        # Init
+        self.stacked_step_time = stacked_step_time
+        self.stacked_cycle_time = stacked_cycle_time
+
+    def mousePressEvent(self, a0: QMouseEvent) -> None:
+        if a0.button() == Qt.MouseButton.LeftButton:
+            # Change the stacked layout
+            self.stacked_cycle_time.setCurrentIndex(0)
+            self.stacked_step_time.setCurrentIndex(0)
 
 
 class MainWindow(QWidget):
@@ -123,12 +139,14 @@ class MainWindow(QWidget):
         # Window properties
         self.setWindowTitle("Real-time Inference")
         self.setGeometry(350, 100, 1920, 1280)
-        # Labels
-        self.feed_label = QLabel()
 
         # Creating Stacked Layout for some plots and items
         self.stacked_step_time = QStackedLayout()
         self.stacked_cycle_time = QStackedLayout()
+
+        # Labels
+        # self.feed_label = QLabel()
+        self.feed_label = FeedLabel(self.stacked_step_time, self.stacked_cycle_time)
 
         # Plots
         # BarPlot - Step Time
@@ -255,19 +273,33 @@ class MainWindow(QWidget):
         # Set a layout
         self.setLayout(self.layout)
 
+        # Database connection from Main Thread
+        self.sm_database_main = StateMachineDB()
+        self.sm_database_main.connect()
+
     def image_update_slot(self, image):
         self.feed_label.setPixmap(QPixmap.fromImage(image))
 
     def line_chart_clicked_slot(self, point):
         # Get the cycle ID
         cycle_id = round(point.x())
-        # Query the database
-        self.sm_database_main = StateMachineDB()
-        self.sm_database_main.connect()
 
-        row = self.sm_database_main.select_by_id("Demo", cycle_id)
-        print(row)
+        # Query the database
+        row = self.sm_database_main.select_by_id("Demo", cycle_id)[0]
+
+        # Update the plots
+        # Step-time plot
+        self.past_time_sets_bysteps[0].remove(0, count=len(self.Worker1.inference_sm.states))
+        self.past_time_sets_bysteps[1].remove(0, count=len(self.Worker1.inference_sm.states))
+        self.past_time_sets_bysteps[0].append(eval(row[2]))
+        self.past_time_sets_bysteps[1].append(eval(row[3]))
+        # Cycle time plot
+        self.past_cycle_percent_sets[0].replace(0, sum(eval(row[2])[0:-1]))
+        self.past_cycle_percent_sets[1].replace(0, eval(row[2])[-1])
+
+        # Step time plot
         self.stacked_step_time.setCurrentIndex(1)
+        self.stacked_cycle_time.setCurrentIndex(1)
 
     def initialize_all_fn(self):
 
@@ -669,6 +701,9 @@ class Worker1(QThread):
                     # Move the axis
                     self.axis_x_cycle_time_line.setRange(row_id - 5, row_id + 5)
 
+                # TODO: Maybe a new thread to do this
+                self.sm_database.db_conn.commit()
+
             # Convert frame to QT6 format for display
             frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
             frame = QImage(frame.data, frame.shape[1], frame.shape[0], QImage.Format.Format_RGB888)
@@ -698,30 +733,46 @@ class Worker1(QThread):
         if summary is not None:
             # Insert data into the database
             # Convert items to appropriate for database
+            # Step time
             temp_step_time = summary["class_occurrence_time"].tolist()[0]
             temp_step_time = [round(x, 2) for x in temp_step_time]
+            # Step time with Other
+            temp_step_time_other = summary["class_occurrence_time_no_other"].tolist()[0]
+            temp_step_time_other = [round(x, 2) for x in temp_step_time_other]
             step_time_str = repr(temp_step_time)
+            step_time_other_str = repr(temp_step_time_other)
+
+            # Sequence breaks
+            sequence_break_items = summary["sequence_break_list"]
             sequence_break_flag = summary["sequence_break_flag"]
-            if sequence_break_flag:
-                sequence_break_items_str = repr(summary["sequence_break_list"])
+            if len(sequence_break_items) != 0:
+                sequence_break_items_str = repr(sequence_break_items)
+                sequence_break_flag = 1
             else:
                 sequence_break_items_str = None
+                sequence_break_flag = 0
+
+            # Missed Steps
             missed_steps_str = summary["untouched_states"]
-            if not missed_steps_str:
+            if len(missed_steps_str) == 0:
                 missed_steps_str = None
             else:
                 missed_steps_str = repr(missed_steps_str)
+
+            # State changes
             states_sequence_str = repr(summary["state_changes"])
 
             # Insert data into database
-            params = [step_time_str, sequence_break_items_str, sequence_break_flag, missed_steps_str,
-                      states_sequence_str]
+            params = [step_time_str, step_time_other_str, sequence_break_items_str, sequence_break_flag,
+                      missed_steps_str, states_sequence_str]
+
             return self.sm_database.insert_data(self.assembly_op, params)
 
         else:
             # First construct the summary
             summary = {
                 "class_occurrence_time": self.inference_sm.class_occurrence_counter_normalized,
+                "class_occurrence_time_no_other": self.inference_sm.class_occurrence_counter_normalized_no_other,
                 "sequence_break_flag": self.inference_sm.sequence_break_flag,
                 "sequence_break_list": self.inference_sm.sequence_break_list,
                 "untouched_states": self.inference_sm.untouched_states,

@@ -38,6 +38,7 @@ class StateMachineDB:
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         time_stamp DATETIME DEFAULT CURRENT_TIMESTAMP,
         step_time TEXT NOT NULL,
+        step_time_others TEXT NOT NULL,
         sequence_break TEXT,
         sequence_break_flag INT NOT NULL,
         missed_step TEXT,
@@ -57,8 +58,8 @@ class StateMachineDB:
         # Get the query
         query = "INSERT INTO " + assembly_op + " "
         query += """
-        (step_time, sequence_break, sequence_break_flag, missed_step, states_sequence) VALUES 
-        (?,?,?,?,?) 
+        (step_time, step_time_others, sequence_break, sequence_break_flag, missed_step, states_sequence) VALUES 
+        (?,?,?,?,?, ?) 
         """
 
         try:
