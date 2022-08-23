@@ -209,7 +209,7 @@ class MainWindow(QWidget):
         # Assign buttons appropriately
         # Loading model and video
         load_items_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        load_items_label.setFont(QFont("Sanserif", 18))
+        load_items_label.setFont(QFont("Helvetica", 18))
         vbox_load_items.addWidget(load_items_label)
         vbox_load_items.addWidget(self.load_video_btn)
         vbox_load_items.addWidget(self.load_model_btn)
@@ -217,7 +217,7 @@ class MainWindow(QWidget):
         # Setting the assembly operation
         select_assembly_ops_label = QLabel("(2) Assembly Type")
         select_assembly_ops_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        select_assembly_ops_label.setFont(QFont("Sanserif", 18))
+        select_assembly_ops_label.setFont(QFont("Helvetica", 18))
         vbox_assembly_selection.addWidget(select_assembly_ops_label)
         vbox_assembly_selection.addWidget(self.assembly_selection_1)
         vbox_assembly_selection.addWidget(self.assembly_selection_2)
@@ -225,14 +225,14 @@ class MainWindow(QWidget):
         vbox_assembly_selection.setSpacing(20)
         # Inference Initialization
         initialize_inference_label = QLabel("(3) Inference Module")
-        initialize_inference_label.setFont(QFont("Sanserif", 18))
+        initialize_inference_label.setFont(QFont("Helvetica", 18))
         vbox_initialize = QVBoxLayout()
         vbox_initialize.addWidget(initialize_inference_label)
         vbox_initialize.addWidget(self.initialize_all)
         vbox_initialize.setAlignment(Qt.AlignmentFlag.AlignCenter)
         # The Start and Stop of Inference
         inference_control_label = QLabel("(3) Inference Control")
-        inference_control_label.setFont(QFont("Sanserif", 18))
+        inference_control_label.setFont(QFont("Helvetica", 18))
         vbox_inference_control = QVBoxLayout()
         vbox_inference_control.addWidget(inference_control_label)
         vbox_inference_control.addWidget(self.play_btn)
@@ -249,7 +249,7 @@ class MainWindow(QWidget):
         hbox_btns.addLayout(sm_dial_hbox)
         hbox_btns.addLayout(vbox_inference_control)
         self.video_gp.setLayout(hbox_btns)
-        self.video_gp.setFont(QFont("Sanserif", 14))
+        self.video_gp.setFont(QFont("Sanserif", 15))
 
         # For the video being playing
         self.vbox_video = QVBoxLayout()
@@ -263,15 +263,39 @@ class MainWindow(QWidget):
         # Add Buttons
         self.layout.addWidget(self.video_gp, 0, 0, 1, 10)
 
+        # The Anomalies identification
+        # Sequence breaks
+        self.hbox_sb = QHBoxLayout()
+        sb_image = QLabel()
+        sb_image.setPixmap(QPixmap("./Images/sequence_break.png"))
+        sb_text = QLabel("Sequence break Detected!")
+        sb_text.setFont(QFont("Helvetica", 22))
+        self.hbox_sb.addWidget(sb_image)
+        self.hbox_sb.addWidget(sb_text)
+        # Missed steps
+        hbox_ms = QHBoxLayout()
+        self.ms_image = QLabel()
+        self.ms_image.setPixmap(QPixmap("./Images/missed_steps.png"))
+        self.ms_text = QLabel("Missed Steps Detected!")
+        self.ms_text.setFont(QFont("Helvetica", 22))
+        hbox_ms.addWidget(self.ms_image)
+        hbox_ms.addWidget(self.ms_text)
+        # VBox
+        vbox_anomaly = QVBoxLayout()
+        vbox_anomaly.addLayout(self.hbox_sb)
+        vbox_anomaly.addLayout(self.hbox_ms)
+        self.sequence_break_gp.setLayout(vbox_anomaly)
+        self.sequence_break_gp.setFont(QFont("Helvetica", 15))
+        # self.sequence_break_gp.hide()
+
         # Initialize all the threads
         self.Worker1 = Worker1()
-        self.Worker2 = Worker2()
         self.Worker1.ImageUpdate.connect(self.image_update_slot)
+        self.Worker1.SequenceBreak.connect(self.sequence_break_update_slot)
 
         # Hand-offs
         self.Worker1.cycle_time_line_series = self.cycle_time_linechart_series
         self.Worker1.axis_x_cycle_time_line = self.axis_x_cycle_time_line
-        self.Worker2.sequence_break_gp = self.sequence_break_gp
 
         # Set a layout
         self.setLayout(self.layout)
@@ -280,11 +304,16 @@ class MainWindow(QWidget):
         self.sm_database_main = StateMachineDB()
         self.sm_database_main.connect()
 
-        # Starting threads
-        self.Worker2.start()
-
     def image_update_slot(self, image):
         self.feed_label.setPixmap(QPixmap.fromImage(image))
+
+    def sequence_break_update_slot(self, data):
+        # Extract the data
+        sequence_break_flag = data[0]
+        sequence_break_items = data[1]
+
+        # if sequence_break_flag:
+
 
     def line_chart_clicked_slot(self, point):
         # Get the cycle ID
@@ -400,6 +429,7 @@ class MainWindow(QWidget):
         self.layout.addLayout(self.vbox_video, 2, 4, 8, 3)
         self.layout.addLayout(self.stacked_cycle_time, 2, 0, 3, 4)
         self.layout.addLayout(self.stacked_step_time, 5, 0, 5, 4)
+        self.layout.addWidget(self.sequence_break_gp, 2, 7, 3, 2)
 
         # Enable the inference button
         self.play_btn.setEnabled(True)
@@ -577,20 +607,6 @@ class MainWindow(QWidget):
         self.past_cycle_percent_series.attachAxis(self.past_axis_x_cycle_percent)
         # Chart View
         self._past_chart_view_cycle_percent = QChartView(self.past_chart_cycle_percent)
-
-
-class Worker2(QThread):
-
-    def __init__(self):
-        super(Worker2, self).__init__()
-
-        # Create the signal handlers
-        self.Worker1 = Worker1()
-        self.Worker1.SequenceBreak.connect(self.sequence_break_update_slot)
-
-    def sequence_break_update_slot(self, data):
-
-        print(data[0])
 
 
 class Worker1(QThread):
