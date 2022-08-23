@@ -1,6 +1,6 @@
 from PyQt6.QtWidgets import QApplication, QWidget, QPushButton, QHBoxLayout, QVBoxLayout, QStyle, QFileDialog, QLabel, \
     QGridLayout, QComboBox, QDial, QGroupBox, QRadioButton, QStackedLayout
-from PyQt6.QtGui import QIcon, QImage, QPixmap, QFont, QMouseEvent
+from PyQt6.QtGui import QIcon, QImage, QPixmap, QFont, QMouseEvent, QColor
 from PyQt6.QtCharts import QBarSet, QChart, QChartView, QBarCategoryAxis, QValueAxis, QHorizontalStackedBarSeries, \
     QHorizontalPercentBarSeries, QLineSeries
 from PyQt6.QtCore import QThread, pyqtSignal, Qt, QEvent
@@ -84,7 +84,7 @@ class MainWindow(QWidget):
         # Dials
         # The inference length dial
         inference_machine_dial_vbox = QVBoxLayout()
-        self.inference_machine_dial_value_label = QLabel("30s")
+        self.inference_machine_dial_value_label = QLabel("30 frames")
         inference_machine_dial_label = QLabel("Inference length")
         inference_machine_dial_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.inference_machine_dial_value_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -106,15 +106,15 @@ class MainWindow(QWidget):
         sm_dial1_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         sm_dial2_label = QLabel("Cycle Reset")
         sm_dial2_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.sm_dial1_label_value = QLabel("3.0s")
+        self.sm_dial1_label_value = QLabel("2.0s")
         self.sm_dial1_label_value.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.sm_dial2_label_value = QLabel("1.0s")
+        self.sm_dial2_label_value = QLabel("2.0s")
         self.sm_dial2_label_value.setAlignment(Qt.AlignmentFlag.AlignCenter)
         # SM Dial-1
         self.sm_dial1 = QDial()
         self.sm_dial1.setRange(5, 50)
         self.sm_dial1.setSingleStep(1)
-        self.sm_dial1.setValue(30)
+        self.sm_dial1.setValue(20)
         self.sm_dial1.setEnabled(False)
         self.sm_dial1.setNotchesVisible(True)
         self.sm_dial1.valueChanged.connect(self.sm_dial1_value_changed)
@@ -125,7 +125,7 @@ class MainWindow(QWidget):
         self.sm_dial2 = QDial()
         self.sm_dial2.setRange(5, 50)
         self.sm_dial2.setSingleStep(1)
-        self.sm_dial2.setValue(10)
+        self.sm_dial2.setValue(20)
         self.sm_dial2.setEnabled(False)
         self.sm_dial2.setNotchesVisible(True)
         self.sm_dial2.valueChanged.connect(self.sm_dial2_value_changed)
@@ -138,7 +138,8 @@ class MainWindow(QWidget):
         sm_dial_hbox.addLayout(sm_dial_vbox2)
 
         # Window properties
-        self.setWindowTitle("Real-time Inference")
+        self.setWindowTitle("Real-time Inference Module")
+        self.setWindowIcon(QIcon("./Images/ai.png"))
         self.setGeometry(350, 100, 1920, 1280)
 
         # Creating Stacked Layout for some plots and items
@@ -189,13 +190,13 @@ class MainWindow(QWidget):
         self.chart_cycle_time_line.setTitle("Past Cycle Time")
         self.axis_x_cycle_time_line = QValueAxis()
         self.axis_x_cycle_time_line.setTitleText("Cycle Count")
-        self.axis_x_cycle_time_line.setRange(1, 10)
+        self.axis_x_cycle_time_line.setRange(0, 10)
         self.axis_x_cycle_time_line.setTickCount(10)
         self.chart_cycle_time_line.addAxis(self.axis_x_cycle_time_line, Qt.AlignmentFlag.AlignBottom)
         self.cycle_time_linechart_series.attachAxis(self.axis_x_cycle_time_line)
         self.axis_y_cycle_time_line = QValueAxis()
         self.axis_y_cycle_time_line.setTitleText("Time (s)")
-        self.axis_y_cycle_time_line.setRange(100, 500)
+        self.axis_y_cycle_time_line.setRange(100, 300)
         self.chart_cycle_time_line.addAxis(self.axis_y_cycle_time_line, Qt.AlignmentFlag.AlignLeft)
         self.cycle_time_linechart_series.attachAxis(self.axis_y_cycle_time_line)
         self._chart_view_cycle_line = QChartView(self.chart_cycle_time_line)
@@ -266,20 +267,25 @@ class MainWindow(QWidget):
         # The Anomalies identification
         # Sequence breaks
         self.hbox_sb = QHBoxLayout()
-        sb_image = QLabel()
-        sb_image.setPixmap(QPixmap("./Images/sequence_break.png"))
-        sb_text = QLabel("Sequence break Detected!")
-        sb_text.setFont(QFont("Helvetica", 22))
-        self.hbox_sb.addWidget(sb_image)
-        self.hbox_sb.addWidget(sb_text)
+        self.sb_image = QLabel()
+        self.sb_image.setPixmap(QPixmap("./Images/sequence_break.png"))
+        self.sb_image.hide()
+        self.sb_text = QLabel()
+        self.sb_text.setFont(QFont("Helvetica", 18))
+        self.sb_text.hide()
+        # sb_text.set
+        self.hbox_sb.addWidget(self.sb_image)
+        self.hbox_sb.addWidget(self.sb_text)
         # Missed steps
-        hbox_ms = QHBoxLayout()
+        self.hbox_ms = QHBoxLayout()
         self.ms_image = QLabel()
         self.ms_image.setPixmap(QPixmap("./Images/missed_steps.png"))
+        self.ms_image.hide()
         self.ms_text = QLabel("Missed Steps Detected!")
-        self.ms_text.setFont(QFont("Helvetica", 22))
-        hbox_ms.addWidget(self.ms_image)
-        hbox_ms.addWidget(self.ms_text)
+        self.ms_text.hide()
+        self.ms_text.setFont(QFont("Helvetica", 18))
+        self.hbox_ms.addWidget(self.ms_image)
+        self.hbox_ms.addWidget(self.ms_text)
         # VBox
         vbox_anomaly = QVBoxLayout()
         vbox_anomaly.addLayout(self.hbox_sb)
@@ -312,8 +318,15 @@ class MainWindow(QWidget):
         sequence_break_flag = data[0]
         sequence_break_items = data[1]
 
-        # if sequence_break_flag:
+        if (sequence_break_flag and len(sequence_break_items) > 0) and self.sb_text.isHidden():
+            self.sb_text.setText(f"Sequence break \n --- Step-{sequence_break_items[0]} Incomplete")
+            self.sb_text.show()
+            self.sb_image.show()
 
+        if not sequence_break_flag and self.sb_text.isVisible():
+            self.sb_text.setText("")
+            self.sb_text.hide()
+            self.sb_image.hide()
 
     def line_chart_clicked_slot(self, point):
         # Get the cycle ID
@@ -331,10 +344,25 @@ class MainWindow(QWidget):
         # Cycle time plot
         self.past_cycle_percent_sets[0].replace(0, sum(eval(row[2])[0:-1]))
         self.past_cycle_percent_sets[1].replace(0, eval(row[2])[-1])
-
-        # Step time plot
+        # Stack the plots
         self.stacked_step_time.setCurrentIndex(1)
         self.stacked_cycle_time.setCurrentIndex(1)
+
+        # Check for missing steps and update the items
+        if row[6] is not None:
+            missed_steps = eval(row[6])
+            if len(missed_steps) > 0:
+                missed_step_str = "Steps Missed \n --- { "
+                for step in missed_steps:
+                    missed_step_str += f"{step}, "
+                missed_step_str += " }"
+                self.ms_text.setText(missed_step_str)
+                self.ms_image.show()
+                self.ms_text.show()
+        else:
+            self.ms_text.setText("")
+            self.ms_image.hide()
+            self.ms_text.hide()
 
     def initialize_all_fn(self):
 
@@ -429,7 +457,7 @@ class MainWindow(QWidget):
         self.layout.addLayout(self.vbox_video, 2, 4, 8, 3)
         self.layout.addLayout(self.stacked_cycle_time, 2, 0, 3, 4)
         self.layout.addLayout(self.stacked_step_time, 5, 0, 5, 4)
-        self.layout.addWidget(self.sequence_break_gp, 2, 7, 3, 2)
+        self.layout.addWidget(self.sequence_break_gp, 2, 7, 3, 3)
 
         # Enable the inference button
         self.play_btn.setEnabled(True)
@@ -447,7 +475,9 @@ class MainWindow(QWidget):
         self.load_model_btn.setEnabled(True)
         self.play_btn.setEnabled(True)
 
-        self.stacked_step_time.setCurrentIndex(1)
+        # Reset the stacks
+        self.stacked_step_time.setCurrentIndex(0)
+        self.stacked_cycle_time.setCurrentIndex(0)
 
     def inference_machine_dial_value_changed(self):
 
@@ -456,7 +486,7 @@ class MainWindow(QWidget):
         self.Worker1.inference_length = current_value
 
         # Update the label
-        self.inference_machine_dial_value_label.setText(str(current_value) + "s")
+        self.inference_machine_dial_value_label.setText(str(current_value) + " frames")
 
     def sm_dial1_value_changed(self):
 
@@ -551,6 +581,9 @@ class MainWindow(QWidget):
             self.past_cycle_percent_series.append(self.past_cycle_percent_sets[step])
 
         # Initialize the step time bar chart
+        # Update the colors for sets
+        self.time_sets_bysteps[0].setColor(QColor(33, 143, 11))
+        self.time_sets_bysteps[1].setColor(QColor(143, 11, 11))
         self.chart_step_time.addSeries(self.time_series_bystep)
         self.chart_step_time.setTitle("Step Time in Seconds")
         # Y-axis
@@ -567,6 +600,9 @@ class MainWindow(QWidget):
         self._chart_view_step_time = QChartView(self.chart_step_time)
 
         # Initialize the cycle time percentage bar chart
+        # Update colors for sets
+        self.cycle_percent_sets[0].setColor(QColor(33, 143, 11))
+        self.cycle_percent_sets[1].setColor(QColor(143, 11, 11))
         self.chart_cycle_percent.addSeries(self.cycle_percent_series)
         self.chart_cycle_percent.setTitle("Cycle Time")
         # Only Y-axis
@@ -581,6 +617,9 @@ class MainWindow(QWidget):
         self._chart_view_cycle_percent = QChartView(self.chart_cycle_percent)
 
         # The past charts - Step Time
+        # Update colors for sets
+        self.past_time_sets_bysteps[0].setColor(QColor(33, 143, 11))
+        self.past_time_sets_bysteps[1].setColor(QColor(143, 11, 11))
         self.past_chart_step_time.addSeries(self.past_time_series_bystep)
         # Axes
         self.past_axis_y_step_time.append(self.categories_step_time)
@@ -595,6 +634,9 @@ class MainWindow(QWidget):
         self._past_chart_view_step_time = QChartView(self.past_chart_step_time)
 
         # Past charts - Cycle Time
+        # Update colors for sets
+        self.past_cycle_percent_sets[0].setColor(QColor(33, 143, 11))
+        self.past_cycle_percent_sets[1].setColor(QColor(143, 11, 11))
         self.past_chart_cycle_percent.addSeries(self.past_cycle_percent_series)
         self.past_chart_cycle_percent.setTitle("Cycle Time")
         # Only Y-axis
@@ -666,7 +708,6 @@ class Worker1(QThread):
             for row in rows:
                 # Get cycle time
                 cycle_time = sum(eval(row[2]))
-                print(cycle_time, row[0])
                 # Update the plot
                 self.cycle_time_line_series.append(row[0], cycle_time)
 
@@ -750,7 +791,8 @@ class Worker1(QThread):
 
             # Emit the thread
             self.ImageUpdate.emit(frame)
-            self.SequenceBreak.emit(("Some",))
+            self.SequenceBreak.emit((self.inference_sm.sequence_break_flag, self.inference_sm.sequence_break_list))
+            # self.SequenceBreak.emit((True, [4]))
 
         # When we run out of video length
         self.construct_insert_sql_data()
