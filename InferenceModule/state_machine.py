@@ -1,6 +1,6 @@
 import math
 import numpy as np
-from collections import deque, Counter
+from collections import deque
 
 
 class StateMachine:
@@ -9,6 +9,9 @@ class StateMachine:
 
         assert isinstance(state_dependencies, list), "The state dependencies should be a list of list"
         assert len(state_dependencies) == num_classes, "The number of states should match the number of classes"
+
+        # The number of classes
+        self.num_classes = num_classes
 
         # Create variables based on number of classes
         # The first state is always true
@@ -32,11 +35,11 @@ class StateMachine:
         self.current_inference = 0
 
         # The class occurrences counter
-        self.class_occurrence_counter = np.zeros(shape=(1, 7), dtype=np.uint16)
-        self.class_occurrence_counter_normalized = np.zeros(shape=(1, 7), dtype=np.float16)
+        self.class_occurrence_counter = np.zeros(shape=(1, self.num_classes), dtype=np.uint16)
+        self.class_occurrence_counter_normalized = np.zeros(shape=(1, self.num_classes), dtype=np.float16)
         # Counter for associating the "Other" to a state
-        self.class_occurrence_counter_no_other = np.zeros(shape=(1, 7), dtype=np.uint16)
-        self.class_occurrence_counter_normalized_no_other = np.zeros(shape=(1, 7), dtype=np.float16)
+        self.class_occurrence_counter_no_other = np.zeros(shape=(1, self.num_classes), dtype=np.uint16)
+        self.class_occurrence_counter_normalized_no_other = np.zeros(shape=(1, self.num_classes), dtype=np.float16)
 
         # General utils
         self.fps = fps
@@ -62,7 +65,7 @@ class StateMachine:
 
         # State transition variables
         # An array of timer for each classes
-        self.state_transition_timer = np.zeros(shape=(1, num_classes), dtype=np.uint16)
+        self.state_transition_timer = np.zeros(shape=(1, self.num_classes), dtype=np.uint16)
         self.cycle_reset_timer = 0
         self.touched_sequence_break_counter = 0
         
@@ -118,7 +121,8 @@ class StateMachine:
                 past_past_state = self.state_ids[0]
 
             # Decrement the 'Other' counter as well
-            self.class_occurrence_counter_no_other[0, past_past_state] -= math.floor(self.state_transition_timer[0, majority_vote])
+            self.class_occurrence_counter_no_other[0, past_past_state] -= math.floor(
+                self.state_transition_timer[0, majority_vote])
             # Normalize the counter to seconds
             self.class_occurrence_counter_normalized_no_other = self.class_occurrence_counter_no_other / self.fps
 
@@ -150,7 +154,7 @@ class StateMachine:
         """
         This method contains the logic used to identify state breaks. This method is called only during state changes.
 
-        :param actual_past_state: The past state, that does not include the "Other" state.
+        :param mod_current_state: The modified current state, in cases where the current state is State-"Other".
         :return: None
         """
 
@@ -250,11 +254,11 @@ class StateMachine:
             self.past_inference_elapsed_time = 0
             self.current_inference = 0
             # The class occurrences counter - update
-            self.class_occurrence_counter = np.zeros(shape=(1, 7), dtype=np.uint16)
+            self.class_occurrence_counter = np.zeros(shape=(1, self.num_classes), dtype=np.uint16)
             self.class_occurrence_counter[0, 0] = self.cycle_reset_timer
             self.class_occurrence_counter_normalized = self.class_occurrence_counter / self.fps
-            self.class_occurrence_counter_no_other = np.zeros(shape=(1, 7), dtype=np.uint16)
-            self.class_occurrence_counter_normalized_no_other = np.zeros(shape=(1, 7), dtype=np.float16)
+            self.class_occurrence_counter_no_other = np.zeros(shape=(1, self.num_classes), dtype=np.uint16)
+            self.class_occurrence_counter_normalized_no_other = np.zeros(shape=(1, self.num_classes), dtype=np.float16)
 
             # Managing errors and other
             self.untouched_states = list(range(len(self.states)))
@@ -274,6 +278,7 @@ class StateMachine:
             self.time_states_visited = []
             self.current_state_counter = self.cycle_reset_timer
 
+            # Reset has happened
             return True
 
         # Return if there is a need to update state
