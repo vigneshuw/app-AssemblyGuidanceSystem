@@ -48,11 +48,18 @@ class MainWindow(QWidget):
         # Buttons
         # Load video
         vbox_load_items = QVBoxLayout()
+        hbox_load_video_items = QHBoxLayout()
         load_items_label = QLabel("(1) Load Data")
         self.load_video_btn = QPushButton("Load Video")
         self.load_video_btn.setEnabled(True)
         self.load_video_btn.setIcon(self.style().standardIcon(QStyle.StandardPixmap.SP_DirIcon))
         self.load_video_btn.clicked.connect(self.open_file)
+        self.set_stream = QPushButton("Live Feed")
+        self.set_stream.setEnabled(True)
+        self.set_stream.setIcon(self.style().standardIcon(QStyle.StandardPixmap.SP_MediaSeekForward))
+        self.set_stream.clicked.connect(self.set_camera_stream)
+        hbox_load_video_items.addWidget(self.load_video_btn)
+        hbox_load_video_items.addWidget(self.set_stream)
         # Play Button
         self.play_btn = QPushButton("Start Inference")
         self.play_btn.setEnabled(False)
@@ -212,7 +219,8 @@ class MainWindow(QWidget):
         load_items_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         load_items_label.setFont(QFont("Helvetica", 18))
         vbox_load_items.addWidget(load_items_label)
-        vbox_load_items.addWidget(self.load_video_btn)
+        # vbox_load_items.addWidget(self.load_video_btn)
+        vbox_load_items.addLayout(hbox_load_video_items)
         vbox_load_items.addWidget(self.load_model_btn)
         vbox_load_items.setAlignment(Qt.AlignmentFlag.AlignCenter)
         # Setting the assembly operation
@@ -232,7 +240,7 @@ class MainWindow(QWidget):
         vbox_initialize.addWidget(self.initialize_all)
         vbox_initialize.setAlignment(Qt.AlignmentFlag.AlignCenter)
         # The Start and Stop of Inference
-        inference_control_label = QLabel("(3) Inference Control")
+        inference_control_label = QLabel("(4) Inference Control")
         inference_control_label.setFont(QFont("Helvetica", 18))
         vbox_inference_control = QVBoxLayout()
         vbox_inference_control.addWidget(inference_control_label)
@@ -530,6 +538,28 @@ class MainWindow(QWidget):
                 self.initialize_all.setEnabled(True)
             # Disable the button
             self.load_video_btn.setEnabled(False)
+            self.set_stream.setEnabled(False)
+
+    def set_camera_stream(self):
+
+        # Try to see if the stream can be opened
+        cap = cv2.VideoCapture(0)
+        if cap.isOpened():
+            # Just the camera one
+            self.file_name = 0
+            self.Worker1.file_name = 0
+
+            # Enable all dials
+            self.inference_machine_dial.setEnabled(True)
+            self.sm_dial1.setEnabled(True)
+            self.sm_dial2.setEnabled(True)
+            self.initialize_all.setEnabled(True)
+            # Disable the load video buttons
+            self.load_video_btn.setEnabled(False)
+            self.set_stream.setEnabled(False)
+
+            # Close the stream
+            cap.release()
 
     def open_file_model(self):
 
