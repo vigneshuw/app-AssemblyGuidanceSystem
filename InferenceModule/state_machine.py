@@ -16,7 +16,7 @@ class StateMachine:
         # Create variables based on number of classes
         # The first state is always true
         # TODO: Automated way of discovering current state
-        self.states = [True if x == 6 else False for x in range(len(state_dependencies))]
+        self.states = [False for _ in range(len(state_dependencies))]
         self.state_ids = list(range(len(self.states)))
         self.past_state = 0
         self.state_dependencies = state_dependencies
@@ -71,6 +71,7 @@ class StateMachine:
         
         # Quick fix
         self.first_inference = True
+        self.first_fn_call = True
 
     def __update_class_occurrences(self, majority_vote):
 
@@ -293,6 +294,11 @@ class StateMachine:
         :param: majority_vote: The class that has been identified by the majority voting
         :return: A boolean indicating if a state reset is required.
         """
+
+        # If it is the first function call
+        if self.first_fn_call:
+            self.states[majority_vote] = True
+            self.first_fn_call = False
 
         # Determine the current state of the machine
         current_state = self.get_current_state(self.states)
