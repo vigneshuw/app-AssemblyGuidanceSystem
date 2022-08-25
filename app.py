@@ -390,7 +390,85 @@ class MainWindow(QWidget):
         self.Worker1.assembly_op = assembly_op
         # Assign the values appropriately
         if assembly_index == 1:
-            sys.stdout.write("Not Implemented\n")
+            self.Worker1.classes_to_states = {
+                6: 0,
+                0: 1,
+                9: 2,
+                3: 3,
+                1: 4,
+                7: 5,
+                4: 6,
+                12: 7,
+                2: 8,
+                5: 9,
+                11: 10,
+                10: 11,
+                8: 12
+            }
+            state_dependencies = [
+                [
+                    [7, 8, 9, 10, 11, 12], [1],     # S0
+                ],
+
+                [
+                    [0, 12], [2]                    # S1
+                ],
+
+                [
+                    [1, 12], [3]                    # S2
+                ],
+
+                [
+                    [2, 12], [4]                    # S3
+                ],
+
+                [
+                    [3, 12], [6]              # S4
+                ],
+
+                [
+                    [4, 12], [6]                 # S5
+                ],
+
+                [
+                    [5, 12], [7]                 # S6
+                ],
+
+                [
+                    [6, 12], [8, 0]                 # S7
+                ],
+
+                [
+                    [7, 12], [9, 0]                 # S8
+                ],
+
+                [
+                    [8, 12], [10, 0]                # S9
+                ],
+
+                [
+                    [9, 12], [11, 0]                # S10
+                ],
+
+                [
+                    [10, 12], [0]                   # S11
+                ],
+
+                [
+                    [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11], [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]                # S12 (Other class)
+                ]
+            ]
+            # Initialize Inference State Machine
+            self.Worker1.inference_sm = StateMachine(state_dependencies=state_dependencies,
+                                                     num_classes=len(state_dependencies),
+                                                     timer=(self.sm_dial1.value()/10, self.sm_dial2.value()/10))
+            self.categories_step_time = ["SN Label (0)", "Vanilla Label (1)", "MOBO (2)", "Scan HHPN & SN (3)",
+                                         "PCIe Fillers (4)", "CSSD card (5)", "Push MOBO (6)", "Secure MOBO (7)",
+                                         "Insert PDBB (8)", "Secure PDBB (9)", "Align cable (10)", "Next Chassis (11)",
+                                         "Other (12)"]
+            # Enable the charts initialization
+            self.initialize_charts(num_steps=len(self.categories_step_time) - 1)
+
         elif assembly_index == 0:
             # Initialize the state machines and assoc
             self.Worker1.classes_to_states = {
