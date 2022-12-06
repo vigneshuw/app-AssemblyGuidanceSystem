@@ -5,27 +5,16 @@ from PyQt6.QtCharts import QBarSet, QChart, QChartView, QBarCategoryAxis, QValue
     QHorizontalPercentBarSeries, QLineSeries
 from PyQt6.QtCore import QThread, pyqtSignal, Qt, QEvent
 from InferenceModule.state_machine import StateMachine
-from InferenceModule.inferences import C3DOpticalFlowRealTime
+from InferenceModule.inference_machine import InferenceMachine
 import sys
 import cv2
 import copy
 import os
 import numpy as np
 from collections import Counter
-from tensorflow import keras
 from database import StateMachineDB
-import tensorflow as tf
 
-# Select GPU for inference
-gpus = tf.config.experimental.list_physical_devices("GPU")
-if gpus:
-    try:
-        tf.config.experimental.set_visible_devices(gpus[-1], "GPU")
-        logical_gpus = tf.config.list_logical_devices("GPU")
-        print(len(gpus), "Physical GPUs,", len(logical_gpus), "Logical GPU")
-    except RuntimeError as e:
-        # If the device is busy and held
-        print(e)
+# Select and identify the GPU to use
 
 
 class FeedLabel(QLabel):
@@ -51,7 +40,8 @@ class MainWindow(QWidget):
 
         # Get the file information
         self.file_name = None
-        self.model_file_name = None
+        self.al_model_weights = None
+        self.obd_model_weights = None
 
         # GroupBox
         self.video_gp = QGroupBox("Video Information")
@@ -83,10 +73,17 @@ class MainWindow(QWidget):
         self.cancel_btn.setIcon(self.style().standardIcon(QStyle.StandardPixmap.SP_MediaStop))
         self.cancel_btn.clicked.connect(self.cancel_feed)
         # Load the model for inference
-        self.load_model_btn = QPushButton("Load Model")
-        self.load_model_btn.setEnabled(True)
-        self.load_model_btn.setIcon(self.style().standardIcon(QStyle.StandardPixmap.SP_DirIcon))
-        self.load_model_btn.clicked.connect(self.open_file_model)
+        hbox_load_model_items = QHBoxLayout()
+        self.load_almodel_btn = QPushButton("Load AL Model")
+        self.load_almodel_btn.setEnabled(True)
+        self.load_almodel_btn.setIcon(self.style().standardIcon(QStyle.StandardPixmap.SP_DirIcon))
+        self.load_almodel_btn.clicked.connect(self.open_file_almodel)
+        self.load_obdmodel_btn = QPushButton("Load OD Model")
+        self.load_obdmodel_btn.setEnabled(True)
+        self.load_obdmodel_btn.setIcon(self.style().standardIcon(QStyle.StandardPixmap.SP_DirIcon))
+        self.load_obdmodel_btn.clicked.connect(self.open_file_obdmodel)
+        hbox_load_model_items.addWidget(self.load_almodel_btn)
+        hbox_load_model_items.addWidget(self.load_obdmodel_btn)
         # Initialization button
         self.initialize_all = QPushButton("Initialize")
         self.initialize_all.setEnabled(False)
@@ -99,6 +96,7 @@ class MainWindow(QWidget):
         self.assembly_selection_1 = QRadioButton("AssemblyDemo")
         self.assembly_selection_1.setChecked(True)
         self.assembly_selection_2 = QRadioButton("L10 Assembly Line")
+        self.assembly_selection_2.setEnabled(False)
 
         # Dials
         # The inference length dial
@@ -233,7 +231,7 @@ class MainWindow(QWidget):
         vbox_load_items.addWidget(load_items_label)
         # vbox_load_items.addWidget(self.load_video_btn)
         vbox_load_items.addLayout(hbox_load_video_items)
-        vbox_load_items.addWidget(self.load_model_btn)
+        vbox_load_items.addLayout(hbox_load_model_items)
         vbox_load_items.setAlignment(Qt.AlignmentFlag.AlignCenter)
         # Setting the assembly operation
         select_assembly_ops_label = QLabel("(2) Assembly Type")
@@ -388,9 +386,9 @@ class MainWindow(QWidget):
 
         # Initialize the model
         # Load and set the required model
-        model = keras.models.load_model(self.model_file_name)
-        self.Worker1.c3d_realtime = C3DOpticalFlowRealTime(model=model,
-                                                           inference_length=self.inference_machine_dial.value())
+        self.Worker1.c3d_realtime = InferenceMachine(obd_model_weight_path=self.al_model_weights,
+                                                     al_model_weight_path=self.obd_model_weights,
+                                                     inference_length=self.inference_machine_dial.value())
 
         # Initialize the State Machine
         if self.assembly_selection_1.isChecked():
@@ -604,7 +602,7 @@ class MainWindow(QWidget):
         if file_name != '':
             self.file_name = file_name
             self.Worker1.file_name = file_name
-            if self.model_file_name is not None:
+            if self.al_model_weights is not None and self.obd_model_weights is not None:
                 # Enable all dials
                 self.inference_machine_dial.setEnabled(True)
                 self.sm_dial1.setEnabled(True)
@@ -635,22 +633,39 @@ class MainWindow(QWidget):
             # Close the stream
             cap.release()
 
-    def open_file_model(self):
+    def open_file_almodel(self):
 
-        file_name, _ = QFileDialog.getOpenFileName(self, "Open Model")
+        file_name, _ = QFileDialog.getOpenFileName(self, "Open AL Model")
 
         # Set model to model file name
         if file_name != "":
-            self.model_file_name = file_name
-            self.Worker1.model_file_name = file_name
-            if self.file_name is not None:
+            self.al_model_weights = file_name
+            self.Worker1.al_model_weights = file_name
+            if self.file_name is not None and self.obd_model_weights is not None:
                 # Enable all dials
                 self.inference_machine_dial.setEnabled(True)
                 self.sm_dial1.setEnabled(True)
                 self.sm_dial2.setEnabled(True)
                 self.initialize_all.setEnabled(True)
             # Disable the button
-            self.load_model_btn.setEnabled(False)
+            self.load_almodel_btn.setEnabled(False)
+
+    def open_file_obdmodel(self):
+
+        file_name, _ = QFileDialog.getOpenFileName(self, "Open Obj-Det Model")
+
+        # Set model to model file name
+        if file_name != "":
+            self.obd_model_weights = file_name
+            self.Worker1.obd_model_weights = file_name
+            if self.file_name is not None and self.al_model_weights is not None:
+                # Enable the Dials
+                self.inference_machine_dial.setEnabled(True)
+                self.sm_dial1.setEnabled(True)
+                self.sm_dial2.setEnabled(True)
+                self.initialize_all.setEnabled(True)
+            # Disable button
+            self.load_obdmodel_btn.setEnabled(False)
 
     def initialize_charts(self, num_steps):
 
@@ -771,7 +786,8 @@ class Worker1(QThread):
         self.thread_active = False
 
         # Model information
-        self.model_file_name = None
+        self.al_model_weights = None
+        self.obd_model_weights = None
 
         # The Inference module
         # Hyperparams
