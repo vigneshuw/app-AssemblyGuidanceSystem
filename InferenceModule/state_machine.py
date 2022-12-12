@@ -127,6 +127,15 @@ class StateMachine:
             # Normalize the counter to seconds
             self.class_occurrence_counter_normalized_no_other = self.class_occurrence_counter_no_other / self.fps
 
+        # Correct the class occurrence time for the no-other
+        if majority_vote == self.state_ids[-1]:
+
+            # Increment the no-other counter by the state transition timer
+            self.class_occurrence_counter_no_other[0, self.past_state] += \
+                math.floor(self.state_transition_timer[0, majority_vote])
+            # Normalize the counter to seconds
+            self.class_occurrence_counter_normalized_no_other = self.class_occurrence_counter_no_other / self.fps
+
     def __check_cycle_completion(self, current_state):
 
         """
@@ -270,7 +279,7 @@ class StateMachine:
             # Flag to reset the state machine
             self.reset_state_machine = False
 
-            # State transition variables
+            # State transition  variables
             self.state_transition_timer = np.zeros(shape=(1, len(self.state_dependencies)), dtype=np.uint16)
             self.cycle_reset_timer = 0
 
@@ -370,6 +379,7 @@ class StateMachine:
             self.state_changes.append(current_state)
 
             # Do the computations associated with states visited
+            # The states visited list will increase only during state change. Leads to last state missing from list
             self.states_visited.append(self.past_state)
             self.current_state_counter -= self.state_transition_timer[0, majority_vote]
             self.current_state_counter /= self.fps
