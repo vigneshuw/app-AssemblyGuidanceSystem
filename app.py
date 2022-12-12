@@ -8,11 +8,14 @@ from InferenceModule.state_machine import StateMachine
 from InferenceModule.inference_machine import InferenceMachine
 import sys
 import cv2
+import random
 import copy
 import os
 import numpy as np
 from collections import Counter
 from database import StateMachineDB
+from utils.general import scale_coords
+from utils.plots import plot_one_box
 
 # Select and identify the GPU to use
 
@@ -328,6 +331,9 @@ class MainWindow(QWidget):
         self.sm_database_main = StateMachineDB()
         self.sm_database_main.connect()
 
+        # Video related information
+        self.fps = None
+
     def image_update_slot(self, image):
         self.feed_label.setPixmap(QPixmap.fromImage(image))
 
@@ -386,8 +392,8 @@ class MainWindow(QWidget):
 
         # Initialize the model
         # Load and set the required model
-        self.Worker1.c3d_realtime = InferenceMachine(obd_model_weight_path=self.al_model_weights,
-                                                     al_model_weight_path=self.obd_model_weights,
+        self.Worker1.c3d_realtime = InferenceMachine(obd_model_weight_path=self.obd_model_weights,
+                                                     al_model_weight_path=self.al_model_weights,
                                                      inference_length=self.inference_machine_dial.value())
 
         # Initialize the State Machine
@@ -453,10 +459,12 @@ class MainWindow(QWidget):
                     [0, 1, 2, 3, 4, 5, 6, 7, 8], [0, 1, 2, 3, 4, 5, 6, 7, 8]   # S9 (Other class)
                 ]
             ]
+            self.Worker1.state_dependencies = state_dependencies
             # Initialize Inference State Machine
             self.Worker1.inference_sm = StateMachine(state_dependencies=state_dependencies,
                                                      num_classes=len(state_dependencies),
-                                                     timer=(self.sm_dial1.value()/10, self.sm_dial2.value()/10))
+                                                     timer=(self.sm_dial1.value()/10, self.sm_dial2.value()/10),
+                                                     fps=self.fps)
             self.categories_step_time = ["Labelling-1", "Labelling-2", "Position MOBO", "Scan",
                                          "Insert PCIe Fillers", "Insert CSSD card", "Push and Secure MOBO",
                                          "Route Cabling", "Get Next Chassis"]
@@ -475,6 +483,17 @@ class MainWindow(QWidget):
                 0: 6
 
             }
+            # Object state dependencies
+            self.Worker1.object_associations = {
+                0: [[], [7]],
+                1: [[0], [4, 5]],
+                2: [[], []],
+                3: [[], [3]],
+                4: [[], [2]],
+                5: [[1], [6]],
+                6: [[], []]
+            }
+
             # Create state dependencies
             state_dependencies = [
                 [
@@ -505,10 +524,12 @@ class MainWindow(QWidget):
                     [0, 1, 2, 3, 4, 5], [0, 1, 2, 3, 4, 5]  # S6 - The "Other" class
                 ],
             ]
+            self.Worker1.state_dependencies = state_dependencies
             # Initialize the inference state machine
             self.Worker1.inference_sm = StateMachine(state_dependencies=state_dependencies,
                                                      num_classes=len(state_dependencies),
-                                                     timer=(self.sm_dial1.value()/10, self.sm_dial2.value()/10))
+                                                     timer=(self.sm_dial1.value()/10, self.sm_dial2.value()/10),
+                                                     fps=self.fps)
 
             # Define the categories for step time plot
             self.categories_step_time = ["Position Motherboard", "Attach Bracket", "Secure Motherboard", "Insert Card",
@@ -552,7 +573,8 @@ class MainWindow(QWidget):
 
         # Update button states
         self.load_video_btn.setEnabled(True)
-        self.load_model_btn.setEnabled(True)
+        self.load_almodel_btn.setEnabled(True)
+        self.load_obdmodel_btn.setEnabled(True)
         self.play_btn.setEnabled(True)
 
         # Reset the stacks
@@ -600,17 +622,29 @@ class MainWindow(QWidget):
 
         # Set media player to file name
         if file_name != '':
-            self.file_name = file_name
-            self.Worker1.file_name = file_name
-            if self.al_model_weights is not None and self.obd_model_weights is not None:
-                # Enable all dials
-                self.inference_machine_dial.setEnabled(True)
-                self.sm_dial1.setEnabled(True)
-                self.sm_dial2.setEnabled(True)
-                self.initialize_all.setEnabled(True)
-            # Disable the button
-            self.load_video_btn.setEnabled(False)
-            self.set_stream.setEnabled(False)
+
+            # Check to ensure that the file is in fact video
+            try:
+                cap = cv2.VideoCapture(file_name)
+                self.fps = cap.get(cv2.CAP_PROP_FPS)
+            except:
+                sys.stdout.write("The file selected for inference is not a video file\n")
+            else:
+                sys.stdout.write(f"Video loaded at an FPS of {self.fps}\n")
+                cap.release()
+
+            if self.fps > 0:
+                self.file_name = file_name
+                self.Worker1.file_name = file_name
+                if self.al_model_weights is not None and self.obd_model_weights is not None:
+                    # Enable all dials
+                    self.inference_machine_dial.setEnabled(True)
+                    self.sm_dial1.setEnabled(True)
+                    self.sm_dial2.setEnabled(True)
+                    self.initialize_all.setEnabled(True)
+                # Disable the button
+                self.load_video_btn.setEnabled(False)
+                self.set_stream.setEnabled(False)
 
     def set_camera_stream(self):
 
@@ -809,6 +843,10 @@ class Worker1(QThread):
         self.sm_database = StateMachineDB()
         self.assembly_op = None
 
+        # OBD related
+        self.object_associations = None
+        self.state_dependencies = None
+
     def run(self):
 
         self.thread_active = True
@@ -838,6 +876,10 @@ class Worker1(QThread):
             highest_cycle = max(cycle_id)
             self.axis_x_cycle_time_line.setRange(highest_cycle - 5, highest_cycle + 5)
 
+        # Object detection related
+        class_names = [self.c3d_realtime.obd_classes[i] for i in range(len(list(self.c3d_realtime.obd_classes.values())))]
+        colors = [[random.randint(0, 255) for _ in range(3)] for _ in class_names]
+
         while self.thread_active and cap.isOpened():
 
             ret, frame = cap.read()
@@ -848,25 +890,22 @@ class Worker1(QThread):
             inference_packet = self.c3d_realtime.make_inference(frame)
             if inference_packet is None:
                 continue
-                # Unpack the inference packet
-            inferences_list, inferences_prob = inference_packet
-            # Get the array of inferences
-            inferences_prob_summary = np.round_(np.array(inferences_prob).mean(axis=0), decimals=4)[0, :]
-            # Rearrange the output
-            inferences_prob_summary = np.array(inferences_prob_summary[list(self.classes_to_states.keys())])[np.newaxis, :]
 
+            '''
+            Action Recognition
+            '''
+            inferences_list, _ = inference_packet[0:2]
             # Counter
             counter = Counter(inferences_list)
-            # get the most common
+            # Majority voting
             majority_vote = counter.most_common(1)[0][0]
-            # TODO: Fix the step order
+            # Update the vote ordering
             majority_vote = self.classes_to_states[majority_vote]
 
-            # Update the state machine
+            # Update state machine
             status = self.inference_sm.update_state(majority_vote=majority_vote)
-
-            # Update the Step time plot
             current_state = self.inference_sm.get_current_state(self.inference_sm.states)
+
             self.time_sets_bysteps[0].replace(current_state,
                                               self.inference_sm.class_occurrence_counter_normalized[0, current_state])
             self.time_sets_bysteps[1].remove(0, count=len(self.inference_sm.states))
@@ -904,8 +943,37 @@ class Worker1(QThread):
                 # TODO: Maybe a new thread to do this
                 self.sm_database.db_conn.commit()
 
+            '''
+            Object Detection
+            '''
+            # Determine the state for the objects
+            if current_state == len(self.state_dependencies) - 1:
+                selected_state = self.inference_sm.untouched_states[0] if len(self.inference_sm.untouched_states) >= 1 \
+                    else len(self.state_dependencies) - 1
+            else:
+                selected_state = current_state + 1
+
+            obd_inference, img, img0 = inference_packet[-1]
+
+            # Processing params
+            # Scale the coordinates for original image
+            obd_inference[:, :4] = scale_coords(img.shape[2:], obd_inference[:, :4], img0.shape).round()
+
+            # Extract the required objects for the state
+            tool_objs = self.object_associations[selected_state][0]
+            component_objs = self.object_associations[selected_state][1]
+
+            # Write the detection objects
+            for *xyxy, conf, cls in reversed(obd_inference):
+                # Conditions on what to draw
+                if (int(cls) in tool_objs) or (int(cls) in component_objs):
+                    # Update the label
+                    label = f'{self.c3d_realtime.obd_classes[int(cls)]} {conf:.2f}'
+                    # Update the image
+                    plot_one_box(xyxy, img0, label=label, color=colors[int(cls)], line_thickness=2)
+
             # Convert frame to QT6 format for display
-            frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+            frame = cv2.cvtColor(img0, cv2.COLOR_BGR2RGB)
             frame = QImage(frame.data, frame.shape[1], frame.shape[0], QImage.Format.Format_RGB888)
             frame = frame.scaled(640, 480, Qt.AspectRatioMode.KeepAspectRatio)
 
