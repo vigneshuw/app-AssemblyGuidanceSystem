@@ -29,6 +29,24 @@ pip install -r requirements.txt
 python app.py
 ```
 
-This should start the GUI interface as shown in Figure 
+## GUI
+
+Running the `app.py` should start the GUI as shown below, and the screen recording of the app's operation can be seen [here](https://smartmfg.me.wisc.edu/video/AM_interactive_app.mp4).
+
+![GUI Image](resources/GUI.png)
+
+
+## TODO
+
+- [ ] Ability to train models for different assemblies through the app
+- [ ] Integration of NVA detection without explicit model training
+
+## Misc
+
+- **Note:** For the videos corresponding to the trained weights of the deep learning models, please reach to the owner of the repository.
+
+## Acknowledgements
+
+- YOLOv7 - https://github.com/WongKinYiu/yolov7
 
 
