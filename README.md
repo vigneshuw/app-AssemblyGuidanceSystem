@@ -43,7 +43,8 @@ Running the `app.py` should start the GUI as shown below, and the screen recordi
 
 ## Misc
 
-- **Note:** For the videos corresponding to the trained weights of the deep learning models, please reach to the owner of the repository.
+- **Note-1:** For the videos corresponding to the trained weights of the deep learning models, please reach out to the repository owner.
+- **Note-2:** The main branch contains the code corresponding to assembly action detection and location without the object detection part.
 
 ## Acknowledgements
 
